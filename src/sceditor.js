@@ -7,7 +7,7 @@
  * SCEditor is licensed under the MIT license:
  *	http://www.opensource.org/licenses/mit-license.php
  *
- * @fileoverview SCEditor - A lightweight WYSIWYG BBCode and HTML editor
+ * @fileoverview SCEditor - A lightweight WYSIWYG HTML editor
  * @author Sam Clarke
  */
 

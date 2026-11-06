@@ -1214,7 +1214,7 @@ QUnit.test('removeWhiteSpace() - Deeply nested siblings', function (assert) {
 
 QUnit.test('removeWhiteSpace() - Text next to image', function (assert) {
 	var node = utils.htmlToNode(
-		'<div>test  <img src="../../emoticons/smile.png">  test.</div>'
+		'<div>test  <img src="smile.png">  test.</div>'
 	);
 
 	dom.removeWhiteSpace(node);
@@ -1222,7 +1222,7 @@ QUnit.test('removeWhiteSpace() - Text next to image', function (assert) {
 	assert.nodesEqual(
 		node,
 		utils.htmlToNode(
-			'<div>test <img src="../../emoticons/smile.png"> test.</div>'
+			'<div>test <img src="smile.png"> test.</div>'
 		)
 	);
 });

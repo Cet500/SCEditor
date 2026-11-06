@@ -23,9 +23,6 @@ var _templates = {
 		'data-sceditor-command="{name}" unselectable="on">' +
 		'<div unselectable="on">{dispName}</div></a>',
 
-	emoticon: '<img src="{url}" data-sceditor-emoticon="{key}" ' +
-		'alt="{key}" title="{tooltip}" />',
-
 	fontOpt: '<a class="sceditor-font-option" href="#" ' +
 		'data-font="{font}"><font face="{font}">{font}</font></a>',
 

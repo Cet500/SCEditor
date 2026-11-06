@@ -2,17 +2,18 @@ $(function () {
 	patchConsole();
 
 	runner.setup(function () {
-		$('#testarea').sceditor({
+		var textarea = document.getElementById('testarea');
+
+		sceditor.create(textarea, {
 			width: '100%',
 			autofocus: true,
 			toolbar: 'bold,italic,underline',
 			autofocusEnd: true,
 			enablePasteFiltering: true,
-			emoticonsRoot: '../../../',
 			style: '../../../src/themes/content/default.css'
 		});
 
-		this.editor = $('#testarea').sceditor('instance');
+		this.editor = sceditor.instance(textarea);
 
 		runner.run();
 	});

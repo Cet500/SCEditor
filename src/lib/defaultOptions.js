@@ -16,7 +16,7 @@ export default {
 		'left,center,right,justify|font,size,color,removeformat|' +
 		'cut,copy,pastetext|bulletlist,orderedlist,indent,outdent|' +
 		'table|code,quote|horizontalrule,image,email,link,unlink|' +
-		'emoticon,youtube,date,time|ltr,rtl|print,maximize,source',
+		'youtube,date,time|ltr,rtl|print,maximize,source',
 
 	/**
 	 * Comma separated list of commands to excludes from the toolbar
@@ -69,79 +69,6 @@ export default {
 	 * @type {string}
 	 */
 	charset: 'utf-8',
-
-	/**
-	 * Compatibility mode for emoticons.
-	 *
-	 * Helps if you have emoticons such as :/ which would put an emoticon
-	 * inside http://
-	 *
-	 * This mode requires emoticons to be surrounded by whitespace or end of
-	 * line chars. This mode has limited As You Type emoticon conversion
-	 * support. It will not replace AYT for end of line chars, only
-	 * emoticons surrounded by whitespace. They will still be replaced
-	 * correctly when loaded just not AYT.
-	 *
-	 * @type {boolean}
-	 */
-	emoticonsCompat: false,
-
-	/**
-	 * If to enable emoticons. Can be changes at runtime using the
-	 * emoticons() method.
-	 *
-	 * @type {boolean}
-	 * @since 1.4.2
-	 */
-	emoticonsEnabled: true,
-
-	/**
-	 * Emoticon root URL
-	 *
-	 * @type {string}
-	 */
-	emoticonsRoot: '',
-	emoticons: {
-		dropdown: {
-			':)': 'emoticons/smile.png',
-			':angel:': 'emoticons/angel.png',
-			':angry:': 'emoticons/angry.png',
-			'8-)': 'emoticons/cool.png',
-			':\'(': 'emoticons/cwy.png',
-			':ermm:': 'emoticons/ermm.png',
-			':D': 'emoticons/grin.png',
-			'<3': 'emoticons/heart.png',
-			':(': 'emoticons/sad.png',
-			':O': 'emoticons/shocked.png',
-			':P': 'emoticons/tongue.png',
-			';)': 'emoticons/wink.png'
-		},
-		more: {
-			':alien:': 'emoticons/alien.png',
-			':blink:': 'emoticons/blink.png',
-			':blush:': 'emoticons/blush.png',
-			':cheerful:': 'emoticons/cheerful.png',
-			':devil:': 'emoticons/devil.png',
-			':dizzy:': 'emoticons/dizzy.png',
-			':getlost:': 'emoticons/getlost.png',
-			':happy:': 'emoticons/happy.png',
-			':kissing:': 'emoticons/kissing.png',
-			':ninja:': 'emoticons/ninja.png',
-			':pinch:': 'emoticons/pinch.png',
-			':pouty:': 'emoticons/pouty.png',
-			':sick:': 'emoticons/sick.png',
-			':sideways:': 'emoticons/sideways.png',
-			':silly:': 'emoticons/silly.png',
-			':sleeping:': 'emoticons/sleeping.png',
-			':unsure:': 'emoticons/unsure.png',
-			':woot:': 'emoticons/w00t.png',
-			':wassat:': 'emoticons/wassat.png'
-		},
-		hidden: {
-			':whistling:': 'emoticons/whistling.png',
-			':love:': 'emoticons/wub.png'
-		}
-	},
 
 	/**
 	 * Width of the editor. Set to null for automatic with
@@ -327,14 +254,6 @@ export default {
 	zIndex: null,
 
 	/**
-	 * If to trim the BBCode. Removes any spaces at the start and end of the
-	 * BBCode string.
-	 *
-	 * @type {boolean}
-	 */
-	bbcodeTrim: false,
-
-	/**
 	 * If to disable removing block level elements by pressing backspace at
 	 * the start of them
 	 *
@@ -354,16 +273,6 @@ export default {
 	 * @type {Array}
 	 */
 	allowedIframeUrls: [],
-
-	/**
-	 * BBCode parser options, only applies if using the editor in BBCode
-	 * mode.
-	 *
-	 * See SCEditor.BBCodeParser.defaults for list of valid options
-	 *
-	 * @type {Object}
-	 */
-	parserOptions: { },
 
 	/**
 	 * CSS that will be added to the to dropdown menu (eg. z-index)

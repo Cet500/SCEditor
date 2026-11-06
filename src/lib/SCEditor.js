@@ -7,7 +7,6 @@ import RangeHelper from './RangeHelper.js';
 import _tmpl from './templates.js';
 import * as escape from './escape.js';
 import * as browser from './browser.js';
-import * as emoticons from './emoticons.js';
 import DOMPurify from 'dompurify';
 
 var globalWin  = window;
@@ -63,7 +62,7 @@ export default function SCEditor(original, userOptions) {
 	var base = this;
 
 	/**
-	 * Editor format like BBCode or HTML
+	 * Editor format, for example XHTML
 	 */
 	var format;
 
@@ -157,14 +156,6 @@ export default function SCEditor(original, userOptions) {
 	 * @private
 	 */
 	var locale;
-
-	/**
-	 * Stores a cache of preloaded images
-	 *
-	 * @private
-	 * @type {Array.<HTMLImageElement>}
-	 */
-	var preLoadCache = [];
 
 	/**
 	 * The editors rangeHelper instance
@@ -293,15 +284,6 @@ export default function SCEditor(original, userOptions) {
 	var pasteContentFragment;
 
 	/**
-	 * All the emoticons from dropdown, more and hidden combined
-	 * and with the emoticons root set
-	 *
-	 * @type {!Object<string, string>}
-	 * @private
-	 */
-	var allEmoticons = {};
-
-	/**
 	 * Current icon set if any
 	 *
 	 * @type {?Object}
@@ -314,7 +296,6 @@ export default function SCEditor(original, userOptions) {
 	 * @private
 	 */
 	var	init,
-		replaceEmoticons,
 		handleCommand,
 		initEditor,
 		initLocale,
@@ -322,7 +303,6 @@ export default function SCEditor(original, userOptions) {
 		initOptions,
 		initEvents,
 		initResize,
-		initEmoticons,
 		handlePasteEvt,
 		handleCutCopyEvt,
 		handlePasteData,
@@ -341,8 +321,6 @@ export default function SCEditor(original, userOptions) {
 		checkSelectionChanged,
 		checkNodeChanged,
 		autofocus,
-		emoticonsKeyPress,
-		emoticonsCheckWhitespace,
 		currentStyledBlockNode,
 		triggerValueChanged,
 		valueChangedBlur,
@@ -366,9 +344,6 @@ export default function SCEditor(original, userOptions) {
 	var options = base.opts = utils.extend(
 		true, {}, defaultOptions, userOptions
 	);
-
-	// Don't deep extend emoticons (fixes #565)
-	base.opts.emoticons = userOptions.emoticons || defaultOptions.emoticons;
 
 	if (!Array.isArray(options.allowedIframeUrls)) {
 		options.allowedIframeUrls = [];
@@ -464,8 +439,8 @@ export default function SCEditor(original, userOptions) {
 		/*
 		 * Plugins should be initialized before the formatters since
 		 * they may wish to add or change formatting handlers and
-		 * since the bbcode format caches its handlers,
-		 * such changes must be done first.
+		 * a format may cache its handlers, so such changes must
+		 * be done first.
 		 */
 		pluginManager = new PluginManager(base);
 		(options.plugins || '').split(',').forEach(function (plugin) {
@@ -476,7 +451,6 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		// create the editor
-		initEmoticons();
 		initToolBar();
 		initEditor();
 		initOptions();
@@ -651,7 +625,6 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		dom.attr(editorContainer, 'id', options.id);
-		base.emoticons(options.emoticonsEnabled);
 	};
 
 	/**
@@ -687,10 +660,6 @@ export default function SCEditor(original, userOptions) {
 		dom.on(wysiwygBody, compositionEvents, handleComposition);
 		dom.on(wysiwygBody, checkSelectionEvents, checkSelectionChanged);
 		dom.on(wysiwygBody, eventsToForward, handleEvent);
-
-		if (options.emoticonsCompat && globalWin.getSelection) {
-			dom.on(wysiwygBody, 'keyup', emoticonsCheckWhitespace);
-		}
 
 		dom.on(wysiwygBody, 'blur', function () {
 			if (!base.val()) {
@@ -950,37 +919,6 @@ export default function SCEditor(original, userOptions) {
 			dom.on(globalDoc, endEvents, mouseUpFunc);
 
 			e.preventDefault();
-		});
-	};
-
-	/**
-	 * Prefixes and preloads the emoticon images
-	 * @private
-	 */
-	initEmoticons = function () {
-		var	emoticons = options.emoticons;
-		var root      = options.emoticonsRoot || '';
-
-		if (emoticons) {
-			allEmoticons = utils.extend(
-				{}, emoticons.more, emoticons.dropdown, emoticons.hidden
-			);
-		}
-
-		utils.each(allEmoticons, function (key, url) {
-			allEmoticons[key] = _tmpl('emoticon', {
-				key: key,
-				// Prefix emoticon root to emoticon urls
-				url: root + (url.url || url),
-				tooltip: url.tooltip || key
-			});
-
-			// Preload the emoticon
-			if (options.emoticonsEnabled) {
-				preLoadCache.push(dom.createElement('img', {
-					src: escape.uriScheme(root + (url.url || url))
-				}));
-			}
 		});
 	};
 
@@ -1731,11 +1669,9 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		// Insert the HTML and save the range so the editor can be scrolled
-		// to the end of the selection. Also allows emoticons to be replaced
-		// without affecting the cursor position
+		// to the end of the selection without affecting the cursor position
 		rangeHelper.insertHTML(html, endHtml);
 		rangeHelper.saveRange();
-		replaceEmoticons();
 
 		// Fix any invalid nesting, e.g. if a quote or other block is inserted
 		// into a paragraph
@@ -1899,10 +1835,8 @@ export default function SCEditor(original, userOptions) {
 	 * Gets the value of the editor.
 	 *
 	 * If the editor is in WYSIWYG mode it will return the filtered
-	 * HTML from it (converted to BBCode if using the BBCode plugin).
-	 * It it's in Source Mode it will return the unfiltered contents
-	 * of the source editor (if using the BBCode plugin this will be
-	 * BBCode again).
+	 * HTML from it. If it is in source mode it will return the
+	 * unfiltered contents of the source editor.
 	 *
 	 * @since 1.3.5
 	 * @return {string}
@@ -1913,9 +1847,8 @@ export default function SCEditor(original, userOptions) {
 	/**
 	 * Sets the value of the editor.
 	 *
-	 * If filter set true the val will be passed through the filter
-	 * function. If using the BBCode plugin it will pass the val to
-	 * the BBCode filter to convert any BBCode into HTML.
+	 * If filter is true and the format provides toHtml, the value
+	 * is converted before it is shown.
 	 *
 	 * @param {string} val
 	 * @param {boolean} [filter=true]
@@ -1946,20 +1879,19 @@ export default function SCEditor(original, userOptions) {
 	};
 
 	/**
-	 * Inserts HTML/BBCode into the editor
+	 * Inserts HTML into the editor
 	 *
 	 * If end is supplied any selected text will be placed between
 	 * start and end. If there is no selected text start and end
 	 * will be concatenate together.
 	 *
-	 * If the filter param is set to true, the HTML/BBCode will be
-	 * passed through any plugin filters. If using the BBCode plugin
-	 * this will convert any BBCode into HTML.
+	 * If the filter param is set to true, the HTML will be passed
+	 * through any plugin filters.
 	 *
 	 * @param {string} start
 	 * @param {string} [end=null]
 	 * @param {boolean} [filter=true]
-	 * @param {boolean} [convertEmoticons=true] If to convert emoticons
+	 * @param {boolean} [unused]
 	 * @return {this}
 	 * @since 1.3.5
 	 * @function
@@ -1967,15 +1899,14 @@ export default function SCEditor(original, userOptions) {
 	 * @memberOf SCEditor.prototype
 	 */
 	/**
-	 * Inserts HTML/BBCode into the editor
+	 * Inserts HTML into the editor
 	 *
 	 * If end is supplied any selected text will be placed between
 	 * start and end. If there is no selected text start and end
 	 * will be concatenate together.
 	 *
-	 * If the filter param is set to true, the HTML/BBCode will be
-	 * passed through any plugin filters. If using the BBCode plugin
-	 * this will convert any BBCode into HTML.
+	 * If the filter param is set to true, the HTML will be passed
+	 * through any plugin filters.
 	 *
 	 * If the allowMixed param is set to true, HTML any will not be
 	 * escaped
@@ -1983,7 +1914,7 @@ export default function SCEditor(original, userOptions) {
 	 * @param {string} start
 	 * @param {string} [end=null]
 	 * @param {boolean} [filter=true]
-	 * @param {boolean} [convertEmoticons=true] If to convert emoticons
+	 * @param {boolean} [unused]
 	 * @param {boolean} [allowMixed=false]
 	 * @return {this}
 	 * @since 1.4.3
@@ -1993,7 +1924,7 @@ export default function SCEditor(original, userOptions) {
 	 */
 	// eslint-disable-next-line max-params
 	base.insert = function (
-		start, end, filter, convertEmoticons, allowMixed
+		start, end, filter, unused, allowMixed
 	) {
 		if (base.inSourceMode()) {
 			base.sourceEditorInsertText(start, end);
@@ -2031,9 +1962,8 @@ export default function SCEditor(original, userOptions) {
 	/**
 	 * Gets the WYSIWYG editors HTML value.
 	 *
-	 * If using a plugin that filters the Ht Ml like the BBCode plugin
-	 * it will return the result of the filtering (BBCode) unless the
-	 * filter param is set to false.
+	 * If the format provides toSource and filter is not false, the
+	 * HTML is passed through that conversion.
 	 *
 	 * @param {boolean} [filter=true]
 	 * @return {string}
@@ -2095,10 +2025,9 @@ export default function SCEditor(original, userOptions) {
 	/**
 	 * Gets the text editor value
 	 *
-	 * If using a plugin that filters the text like the BBCode plugin
-	 * it will return the result of the filtering which is BBCode to
-	 * HTML so it will return HTML. If filter is set to false it will
-	 * just return the contents of the source editor (BBCode).
+	 * If the format provides toHtml and filter is not false, the
+	 * source is passed through that conversion. Otherwise the raw
+	 * source editor value is returned.
 	 *
 	 * @param {boolean} [filter=true]
 	 * @return {string}
@@ -2132,7 +2061,6 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		wysiwygBody.innerHTML = sanitize(value);
-		replaceEmoticons();
 
 		appendNewLine();
 		triggerValueChanged();
@@ -2164,18 +2092,6 @@ export default function SCEditor(original, userOptions) {
 	 */
 	base.updateOriginal = function () {
 		original.value = base.val();
-	};
-
-	/**
-	 * Replaces any emoticon codes in the passed HTML
-	 * with their emoticon images
-	 * @private
-	 */
-	replaceEmoticons = function () {
-		if (options.emoticonsEnabled) {
-			emoticons
-				.replace(wysiwygBody, allEmoticons, options.emoticonsCompat);
-		}
 	};
 
 	/**
@@ -2976,115 +2892,6 @@ export default function SCEditor(original, userOptions) {
 	base.valueChanged = function (handler, excludeWysiwyg, excludeSource) {
 		return base
 			.bind('valuechanged', handler, excludeWysiwyg, excludeSource);
-	};
-
-	/**
-	 * Emoticons keypress handler
-	 * @private
-	 */
-	emoticonsKeyPress = function (e) {
-		var	replacedEmoticon,
-			cachePos       = 0,
-			emoticonsCache = base.emoticonsCache,
-			curChar        = String.fromCharCode(e.which);
-
-		// TODO: Make configurable
-		if (dom.closest(currentBlockNode, 'code')) {
-			return;
-		}
-
-		if (!emoticonsCache) {
-			emoticonsCache = [];
-
-			utils.each(allEmoticons, function (key, html) {
-				emoticonsCache[cachePos++] = [key, html];
-			});
-
-			emoticonsCache.sort(function (a, b) {
-				return a[0].length - b[0].length;
-			});
-
-			base.emoticonsCache = emoticonsCache;
-			base.longestEmoticonCode =
-				emoticonsCache[emoticonsCache.length - 1][0].length;
-		}
-
-		replacedEmoticon = rangeHelper.replaceKeyword(
-			base.emoticonsCache,
-			true,
-			true,
-			base.longestEmoticonCode,
-			options.emoticonsCompat,
-			curChar
-		);
-
-		if (replacedEmoticon) {
-			if (!options.emoticonsCompat || !/^\s$/.test(curChar)) {
-				e.preventDefault();
-			}
-		}
-	};
-
-	/**
-	 * Makes sure emoticons are surrounded by whitespace
-	 * @private
-	 */
-	emoticonsCheckWhitespace = function () {
-		emoticons.checkWhitespace(currentBlockNode, rangeHelper);
-	};
-
-	/**
-	 * Gets if emoticons are currently enabled
-	 * @return {boolean}
-	 * @function
-	 * @name emoticons
-	 * @memberOf SCEditor.prototype
-	 * @since 1.4.2
-	 */
-	/**
-	 * Enables/disables emoticons
-	 *
-	 * @param {boolean} enable
-	 * @return {this}
-	 * @function
-	 * @name emoticons^2
-	 * @memberOf SCEditor.prototype
-	 * @since 1.4.2
-	 */
-	base.emoticons = function (enable) {
-		if (!enable && enable !== false) {
-			return options.emoticonsEnabled;
-		}
-
-		options.emoticonsEnabled = enable;
-
-		if (enable) {
-			dom.on(wysiwygBody, 'keypress', emoticonsKeyPress);
-
-			if (!base.sourceMode()) {
-				rangeHelper.saveRange();
-
-				replaceEmoticons();
-				triggerValueChanged(false);
-
-				rangeHelper.restoreRange();
-			}
-		} else {
-			var emoticons =
-				dom.find(wysiwygBody, 'img[data-sceditor-emoticon]');
-
-			utils.each(emoticons, function (_, img) {
-				var text = dom.data(img, 'sceditor-emoticon');
-				var textNode = wysiwygDocument.createTextNode(text);
-				img.parentNode.replaceChild(textNode, img);
-			});
-
-			dom.off(wysiwygBody, 'keypress', emoticonsKeyPress);
-
-			triggerValueChanged();
-		}
-
-		return base;
 	};
 
 	/**

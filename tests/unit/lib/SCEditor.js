@@ -50,15 +50,11 @@ QUnit.module('lib/SCEditor', {
 		SCEditor.formats.test = testFormat;
 
 		defaultOptions.style = '../../src/themes/content/default.css';
-		defaultOptions.emoticonsRoot    = '../../';
-		defaultOptions.emoticonsEnabled = false;
 
 		reloadEditor();
 	},
 	after: function () {
 		defaultOptions.style = 'jquery.sceditor.default.css';
-		defaultOptions.emoticonsRoot    = '';
-		defaultOptions.emoticonsEnabled = true;
 
 		delete SCEditor.formats.test;
 
@@ -220,17 +216,18 @@ QUnit.test('destroy() - Unbind updateOriginal', function (assert) {
 
 	$fixture.append(form);
 
-	var sceditor = new SCEditor(textarea, { format: 'bbcode' });
-	sceditor.val('testing');
+	var sceditor = new SCEditor(textarea, { format: 'xhtml' });
+	sceditor.val('<p>testing</p>');
+	var expected = sceditor.val();
 	submit.click();
 
-	assert.equal(textarea.value, 'testing');
+	assert.equal(textarea.value, expected);
 
-	sceditor.val('testing 123');
+	sceditor.val('<p>testing 123</p>');
 	sceditor.destroy();
 	submit.click();
 
-	assert.equal(textarea.value, 'testing');
+	assert.equal(textarea.value, expected);
 	form.parentNode.removeChild(form);
 });
 
@@ -513,38 +510,6 @@ QUnit.test('updateOriginal()', function (assert) {
 });
 
 
-QUnit.test('emoticons()', function (assert) {
-	var $body = $(sceditor.getBody());
-
-	sceditor.emoticons(true);
-	sceditor.val('<p>Testing :) :( 123...</p>');
-
-	assert.equal($body.find('img[data-sceditor-emoticon]').length, 2);
-
-	sceditor.emoticons(false);
-
-	assert.equal($body.find('img[data-sceditor-emoticon]').length, 0);
-});
-
-QUnit.test('emoticons() - Longest first', function (assert) {
-	reloadEditor({
-		emoticons: {
-			dropdown: {
-				'>:(': 'emoticons/angry.png',
-				':(': 'emoticons/sad.png'
-			}
-		}
-	});
-
-	var $body = $(sceditor.getBody());
-
-	sceditor.emoticons(true);
-	sceditor.val('<p>Testing :( >:( </p>');
-
-	assert.equal($body.find('img[data-sceditor-emoticon=">:("]').length, 1);
-	assert.equal($body.find('img[data-sceditor-emoticon=":("]').length, 1);
-});
-
 QUnit.test('Insert image XSS', function (assert) {
 	var done = assert.async();
 
@@ -577,7 +542,7 @@ QUnit.test('Insert HTML filter JS', function (assert) {
 	var done = assert.async();
 
 	reloadEditor({
-		format: 'bbcode'
+		format: 'xhtml'
 	});
 
 	var called = false;
@@ -593,22 +558,6 @@ QUnit.test('Insert HTML filter JS', function (assert) {
 	}, true);
 });
 
-
-
-QUnit.test('Code tags should ignore block styling', function (assert) {
-	var done = assert.async();
-
-	reloadEditor({
-		format: 'bbcode'
-	});
-	sceditor.css('code {text-align: left}');
-	sceditor.val('[code]test[/code]');
-
-	setTimeout(() => {
-		assert.equal(sceditor.val(), '[code]test[/code]\n');
-		done();
-	}, 100);
-});
 
 
 QUnit.test('Allow target=blank links', function (assert) {
@@ -660,43 +609,3 @@ QUnit.test('Do not wrap whitespace text nodes', function (assert) {
 });
 
 
-QUnit.test('toBBCode() strips XSS', function (assert) {
-	var done = assert.async();
-
-	reloadEditor({
-		format: 'bbcode'
-	});
-
-	document.body.xss = function () {};
-
-	var observer = new MutationObserver(function (mutations) {
-		var hasImage = false;
-
-		mutations.forEach(function (mutation) {
-			Array.prototype.forEach.call(mutation.addedNodes, function (node) {
-				if (node.nodeType !== 1 || !node.querySelector) {
-					return;
-				}
-
-				var img = node.querySelector('img');
-				if (img) {
-					hasImage = true;
-					assert.notOk(img.hasAttribute('onerror'), 'onerror not stripped');
-				}
-			});
-		});
-
-		observer.disconnect();
-		delete document.body.xss;
-
-		assert.ok(hasImage);
-		done();
-	});
-
-	observer.observe(document.body, {
-		childList: true,
-		subtree: true
-	});
-
-	sceditor.toBBCode('<img src="/x.png" onerror="document.body.xss()">');
-});

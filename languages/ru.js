@@ -42,8 +42,6 @@
 		'URL:': 'URL:',
 		'Insert a link': 'Ссылка',
 		'Unlink': 'Удалить ссылку',
-		'More': 'Больше',
-		'Insert an emoticon': 'Смайлы',
 		'Video URL:': 'Видео URL',
 		'Insert': 'Вставить',
 		'Insert a YouTube video': 'YouTube-видео',

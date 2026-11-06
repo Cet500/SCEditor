@@ -5,19 +5,20 @@ $(function () {
 		var that = this;
 
 
-		$('#testarea').sceditor({
+		var textarea = document.getElementById('testarea');
+
+		sceditor.create(textarea, {
 			width: '100%',
 			autofocus: true,
 			toolbar: 'bold,italic,underline',
 			autofocusEnd: true,
 			enablePasteFiltering: true,
-			emoticonsRoot: '../../../',
 			style: '../../../src/themes/content/default.css'
 		});
 
 
 		that.count  = 0;
-		that.editor = $('#testarea').sceditor('instance');
+		that.editor = sceditor.instance(textarea);
 		that.clearCount = function () {
 			that.count = 0;
 

@@ -4,7 +4,7 @@
 [![SemVer](http://img.shields.io/:semver-✓-brightgreen.svg)](http://semver.org)
 [![License](http://img.shields.io/npm/l/sceditor.svg)](https://github.com/samclarke/SCEditor/blob/master/LICENSE.md)
 
-A lightweight WYSIWYG BBCode and XHTML editor.
+A lightweight WYSIWYG XHTML editor.
 
 [![SCEditor preview](https://cdn.rawgit.com/samclarke/SCEditor/49c696b8/preview.svg)](https://www.sceditor.com/)
 
@@ -16,9 +16,8 @@ For more information visit [sceditor.com](http://www.sceditor.com/)
 Include the SCEditor JavaScript:
 
 ```html
-<link rel="stylesheet" href="minified/themes/default.min.css" />
+<link rel="stylesheet" href="minified/themes/square.min.css" />
 <script src="minified/sceditor.min.js"></script>
-<script src="minified/formats/bbcode.js"></script>
 <script src="minified/formats/xhtml.js"></script>
 ```
 
@@ -29,17 +28,6 @@ var textarea = document.getElementById('id-of-textarea');
 
 sceditor.create(textarea, {
 	format: 'xhtml',
-	style: 'minified/themes/content/default.min.css'
-});
-```
-
-or for a BBCode WYSIWYG editor do:
-
-```js
-var textarea = document.getElementById('id-of-textarea');
-
-sceditor.create(textarea, {
-	format: 'bbcode',
 	style: 'minified/themes/content/default.min.css'
 });
 ```
@@ -124,15 +112,3 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-
-## Credits
-
-**Nomicons: The Full Monty Emoticons by:**
-Oscar Gruno, aka Nominell v. 2.0 -> oscargruno@mac.com
-Andy Fedosjeenko, aka Nightwolf -> bobo@animevanguard.com
-
-**Icons by:**
-Mark James (http://www.famfamfam.com/lab/icons/silk/)
-Licensed under the [Creative Commons CC-BY license](http://creativecommons.org/licenses/by/3.0/).

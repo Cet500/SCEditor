@@ -45,11 +45,6 @@
 			var	opts  = this.opts,
 				pOpts = opts.paragraphformat;
 
-			// Don't enable if the BBCode plugin is enabled.
-			if (opts.format && opts.format === 'bbcode') {
-				return;
-			}
-
 			if (pOpts) {
 				if (pOpts.tags) {
 					tags = pOpts.tags;

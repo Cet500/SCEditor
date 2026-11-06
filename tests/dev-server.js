@@ -13,10 +13,6 @@ exports.create = function (port, coverage) {
 					'./src/sceditor.js',
 					'webpack-dev-server/client?http://localhost:9000'
 				],
-				'main-jquery': [
-					'./src/jquery.sceditor.js',
-					'webpack-dev-server/client?http://localhost:9000'
-				],
 				unit: [
 					'./tests/unit/index.js'
 				]
@@ -45,7 +41,6 @@ exports.create = function (port, coverage) {
 				}
 			},
 			externals: {
-				jquery: 'jQuery',
 				rangy: 'rangy'
 			},
 			devtool: 'inline-cheap-module-source-map'

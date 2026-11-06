@@ -88,18 +88,6 @@ module.exports = (grunt) => {
 					},
 					{
 						expand: true,
-						cwd: 'src/',
-						src: 'jquery.sceditor.default.css',
-						dest: 'dist/development/'
-					},
-					{
-						expand: true,
-						cwd: 'src/themes/icons/',
-						src: '*.png',
-						dest: 'dist/development/themes/'
-					},
-					{
-						expand: true,
 						cwd: 'src/themes/',
 						src: 'content/**',
 						dest: 'dist/development/themes/'
@@ -119,11 +107,6 @@ module.exports = (grunt) => {
 						cwd: 'distributable/data/',
 						src: 'example.html',
 						dest: 'dist/'
-					},
-					{
-						expand: true,
-						src: 'emoticons/**',
-						dest: 'dist/'
 					}
 				]
 			},
@@ -131,12 +114,6 @@ module.exports = (grunt) => {
 				options: {
 				},
 				files: [
-					{
-						expand: true,
-						cwd: 'src/themes/icons/',
-						src: '*.png',
-						dest: 'minified/themes/'
-					},
 					{
 						expand: true,
 						cwd: 'src/themes/',
@@ -152,10 +129,6 @@ module.exports = (grunt) => {
 		rollup: {
 			options: {
 				format: 'iife',
-				external: ['jquery'],
-				globals: {
-					jquery: 'jQuery'
-				},
 				plugins: function () {
 					return [
 						nodeResolve({
@@ -166,9 +139,6 @@ module.exports = (grunt) => {
 			},
 			build: {
 				files: {
-					'./minified/jquery.sceditor.min.js': [
-						'./src/jquery.sceditor.js'
-					],
 					'./minified/sceditor.min.js': [
 						'./src/sceditor.js'
 					]
@@ -176,30 +146,8 @@ module.exports = (grunt) => {
 			},
 			dist: {
 				files: {
-					'./dist/development/jquery.sceditor.js': [
-						'./src/jquery.sceditor.js'
-					],
 					'./dist/development/sceditor.js': [
 						'./src/sceditor.js'
-					]
-				}
-			}
-		},
-
-		// Create the XHTML and BBCode bundled JS files
-		concat: {
-			dist: {
-				options: {
-					separator: ';'
-				},
-				files: {
-					'dist/development/jquery.sceditor.bbcode.js': [
-						'dist/development/jquery.sceditor.js',
-						'src/formats/bbcode.js'
-					],
-					'dist/development/jquery.sceditor.xhtml.js': [
-						'dist/development/jquery.sceditor.js',
-						'src/formats/xhtml.js'
 					]
 				}
 			}
@@ -221,24 +169,6 @@ module.exports = (grunt) => {
 						dest: 'minified/sceditor.min.js'
 					},
 					{
-						src: 'minified/jquery.sceditor.min.js',
-						dest: 'minified/jquery.sceditor.min.js'
-					},
-					{
-						src: [
-							'minified/jquery.sceditor.min.js',
-							'src/formats/bbcode.js'
-						],
-						dest: 'minified/jquery.sceditor.bbcode.min.js'
-					},
-					{
-						src: [
-							'minified/jquery.sceditor.min.js',
-							'src/formats/xhtml.js'
-						],
-						dest: 'minified/jquery.sceditor.xhtml.min.js'
-					},
-					{
 						expand: true,
 						filter: 'isFile',
 						cwd: 'src/',
@@ -253,7 +183,7 @@ module.exports = (grunt) => {
 		less: {
 			build: {
 				options: {
-					paths: ['src/themes/', 'src/themes/icons'],
+					paths: ['src/themes/'],
 					cleancss: true
 				},
 				files: [
@@ -261,7 +191,7 @@ module.exports = (grunt) => {
 						expand: true,
 						filter: 'isFile',
 						cwd: 'src/themes/',
-						src: ['*.less'],
+						src: ['square.less'],
 						dest: 'minified/themes/',
 						ext: '.min.css'
 					}
@@ -269,7 +199,7 @@ module.exports = (grunt) => {
 			},
 			dist: {
 				options: {
-					paths: ['src/themes/', 'src/themes/icons'],
+					paths: ['src/themes/'],
 					cleancss: true
 				},
 				files: [
@@ -277,7 +207,7 @@ module.exports = (grunt) => {
 						expand: true,
 						filter: 'isFile',
 						cwd: 'src/themes/',
-						src: ['*.less'],
+						src: ['square.less'],
 						dest: 'dist/development/themes/',
 						ext: '.css'
 					}
@@ -336,7 +266,6 @@ module.exports = (grunt) => {
 	grunt.loadNpmTasks('@lodder/grunt-postcss');
 	grunt.loadNpmTasks('grunt-contrib-clean');
 	grunt.loadNpmTasks('grunt-contrib-compress');
-	grunt.loadNpmTasks('grunt-contrib-concat');
 	grunt.loadNpmTasks('grunt-contrib-copy');
 	grunt.loadNpmTasks('grunt-contrib-less');
 	grunt.loadNpmTasks('grunt-contrib-qunit');
@@ -366,7 +295,6 @@ module.exports = (grunt) => {
 		'build',
 		'clean:dist',
 		'rollup:dist',
-		'concat:dist',
 		'copy:dist',
 		'less:dist'
 	]);

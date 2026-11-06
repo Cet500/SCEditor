@@ -490,7 +490,7 @@ QUnit.test('Comments', function (assert) {
 
 
 QUnit.test('Serialize', function (assert) {
-	var XHTMLSerializer = new $.sceditor.XHTMLSerializer();
+	var XHTMLSerializer = new sceditor.XHTMLSerializer();
 	assert.equal(
 		XHTMLSerializer.serialize(
 			utils.htmlToNode('<div><span>test</span></div>')

@@ -1,5 +1,4 @@
 import * as dom from './dom.js';
-import * as escape from './escape.js';
 import * as utils from './utils.js';
 
 
@@ -640,108 +639,6 @@ export default function RangeHelper(win, d, sanitize) {
 		range.collapse(!before);
 
 		return outerText(range, before, length).text;
-	};
-
-	/**
-	 * Replaces keywords with values based on the current caret position
-	 *
-	 * @param {Array}   keywords
-	 * @param {boolean} includeAfter      If to include the text after the
-	 *                                    current caret position or just
-	 *                                    text before
-	 * @param {boolean} keywordsSorted    If the keywords array is pre
-	 *                                    sorted shortest to longest
-	 * @param {number}  longestKeyword    Length of the longest keyword
-	 * @param {boolean} requireWhitespace If the key must be surrounded
-	 *                                    by whitespace
-	 * @param {string}  keypressChar      If this is being called from
-	 *                                    a keypress event, this should be
-	 *                                    set to the pressed character
-	 * @return {boolean}
-	 * @function
-	 * @name replaceKeyword
-	 * @memberOf RangeHelper.prototype
-	 */
-	// eslint-disable-next-line max-params
-	base.replaceKeyword = function (
-		keywords,
-		includeAfter,
-		keywordsSorted,
-		longestKeyword,
-		requireWhitespace,
-		keypressChar
-	) {
-		if (!keywordsSorted) {
-			keywords.sort(function (a, b) {
-				return a[0].length - b[0].length;
-			});
-		}
-
-		var outerText, match, matchPos, startIndex,
-			leftLen, charsLeft, keyword, keywordLen,
-			whitespaceRegex = '(^|[\\s\xA0\u2002\u2003\u2009])',
-			keywordIdx      = keywords.length,
-			whitespaceLen   = requireWhitespace ? 1 : 0,
-			maxKeyLen       = longestKeyword ||
-				keywords[keywordIdx - 1][0].length;
-
-		if (requireWhitespace) {
-			maxKeyLen++;
-		}
-
-		keypressChar = keypressChar || '';
-		outerText    = base.getOuterText(true, maxKeyLen);
-		leftLen      = outerText.length;
-		outerText   += keypressChar;
-
-		if (includeAfter) {
-			outerText += base.getOuterText(false, maxKeyLen);
-		}
-
-		while (keywordIdx--) {
-			keyword    = keywords[keywordIdx][0];
-			keywordLen = keyword.length;
-			startIndex = Math.max(0, leftLen - keywordLen - whitespaceLen);
-			matchPos   = -1;
-
-			if (requireWhitespace) {
-				match = outerText
-					.substr(startIndex)
-					.match(new RegExp(whitespaceRegex +
-						escape.regex(keyword) + whitespaceRegex));
-
-				if (match) {
-					// Add the length of the text that was removed by
-					// substr() and also add 1 for the whitespace
-					matchPos = match.index + startIndex + match[1].length;
-				}
-			} else {
-				matchPos = outerText.indexOf(keyword, startIndex);
-			}
-
-			if (matchPos > -1) {
-				// Make sure the match is between before and
-				// after, not just entirely in one side or the other
-				if (matchPos <= leftLen &&
-					matchPos + keywordLen + whitespaceLen >= leftLen) {
-					charsLeft = leftLen - matchPos;
-
-					// If the keypress char is white space then it should
-					// not be replaced, only chars that are part of the
-					// key should be replaced.
-					base.selectOuterText(
-						charsLeft,
-						keywordLen - charsLeft -
-							(/^\S/.test(keypressChar) ? 1 : 0)
-					);
-
-					base.insertHTML(keywords[keywordIdx][1]);
-					return true;
-				}
-			}
-		}
-
-		return false;
 	};
 
 	/**

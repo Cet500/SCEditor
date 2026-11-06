@@ -1,15 +1,16 @@
 var testMemoryLeaks = function (pos) {
 	pos = pos || 1;
 
-	$('#testarea').sceditor({
+	var textarea = document.getElementById('testarea');
+
+	sceditor.create(textarea, {
 		autofocus: true,
 		autofocusEnd: true,
 		enablePasteFiltering: true,
-		emoticonsRoot: '../../../',
 		style: '../../../src/themes/content/default.css'
 	});
 
-	$('#testarea').sceditor('instance').destroy();
+	sceditor.instance(textarea).destroy();
 	$('#progress').width(pos + '%');
 
 	if (pos <= 100) {

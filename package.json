@@ -1,7 +1,7 @@
 {
   "name": "sceditor",
   "version": "3.2.3",
-  "description": "A lightweight HTML and BBCode WYSIWYG editor.",
+  "description": "A lightweight HTML WYSIWYG editor.",
   "homepage": "http://www.sceditor.com/",
   "bugs": "https://github.com/samclarke/SCEditor/issues",
   "license": "MIT",
@@ -12,7 +12,6 @@
     }
   ],
   "files": [
-    "emoticons/",
     "languages/",
     "development/",
     "minified/",
@@ -26,14 +25,10 @@
     "url": "https://github.com/samclarke/SCEditor.git"
   },
   "keywords": [
-    "jquery-plugin",
     "WYSIWYG",
-    "BBCode",
     "editor",
     "contenteditable",
-    "jquery",
-    "ui",
-    "ecosystem:jquery"
+    "ui"
   ],
   "engines": {
     "node": ">= 0.10.0"
