@@ -1,4 +1,4 @@
-﻿import * as dom from './dom.js';
+import * as dom from './dom.js';
 import * as utils from './utils.js';
 import defaultOptions from './defaultOptions.js';
 import defaultCommands from './defaultCommands.js';
@@ -7,6 +7,7 @@ import RangeHelper from './RangeHelper.js';
 import _tmpl from './templates.js';
 import * as escape from './escape.js';
 import * as browser from './browser.js';
+import { highlightSource } from './sourceHighlight.js';
 import DOMPurify from 'dompurify';
 
 var globalWin  = window;
@@ -99,6 +100,14 @@ export default function SCEditor(original, userOptions) {
 	var wysiwygEditor;
 
 	/**
+	 * Read-only iframe that shows the content with the preview styles
+	 *
+	 * @type {HTMLIFrameElement}
+	 * @private
+	 */
+	var previewEditor;
+
+	/**
 	 * The editors window
 	 *
 	 * @type {Window}
@@ -129,6 +138,8 @@ export default function SCEditor(original, userOptions) {
 	 * @private
 	 */
 	var sourceEditor;
+	var sourceWrap;
+	var sourceView;
 
 	/**
 	 * The current dropdown
@@ -512,9 +523,28 @@ export default function SCEditor(original, userOptions) {
 	 */
 	initEditor = function () {
 		sourceEditor  = dom.createElement('textarea');
+		sourceView    = dom.createElement('pre', {
+			className: 'sceditor-source-view'
+		});
+		sourceWrap    = dom.createElement('div', {
+			className: 'sceditor-source'
+		});
+		dom.attr(sourceView, 'aria-hidden', 'true');
+		dom.attr(sourceEditor, 'spellcheck', 'false');
+		dom.attr(sourceEditor, 'wrap', 'soft');
+		dom.attr(sourceEditor, 'autocomplete', 'off');
+		dom.attr(sourceEditor, 'autocapitalize', 'off');
+		dom.attr(sourceEditor, 'autocorrect', 'off');
+		dom.appendChild(sourceWrap, sourceView);
+		dom.appendChild(sourceWrap, sourceEditor);
+
 		wysiwygEditor = dom.createElement('iframe', {
 			frameborder: 0,
 			allowfullscreen: true
+		});
+		previewEditor = dom.createElement('iframe', {
+			frameborder: 0,
+			className: 'sceditor-preview'
 		});
 
 		/*
@@ -527,8 +557,10 @@ export default function SCEditor(original, userOptions) {
 			dom.hide(wysiwygEditor);
 		} else {
 			dom.addClass(editorContainer, 'wysiwygMode');
-			dom.hide(sourceEditor);
+			dom.hide(sourceWrap);
 		}
+
+		dom.hide(previewEditor);
 
 		if (!options.spellcheck) {
 			dom.attr(editorContainer, 'spellcheck', 'false');
@@ -540,7 +572,8 @@ export default function SCEditor(original, userOptions) {
 
 		// Add the editor to the container
 		dom.appendChild(editorContainer, wysiwygEditor);
-		dom.appendChild(editorContainer, sourceEditor);
+		dom.appendChild(editorContainer, previewEditor);
+		dom.appendChild(editorContainer, sourceWrap);
 
 		// TODO: make this optional somehow
 		base.dimensions(
@@ -674,6 +707,10 @@ export default function SCEditor(original, userOptions) {
 		dom.on(sourceEditor, 'blur', valueChangedBlur);
 		dom.on(sourceEditor, 'keyup', valueChangedKeyUp);
 		dom.on(sourceEditor, 'keydown', handleKeyDown);
+		dom.on(sourceEditor, 'input', refreshSourceHighlight);
+		dom.on(sourceEditor, 'scroll', syncSourceScroll);
+		dom.on(sourceEditor, 'keyup mouseup select', syncSourceSelection);
+		dom.on(globalDoc, 'selectionchange', syncSourceSelection);
 		dom.on(sourceEditor, compositionEvents, handleComposition);
 		dom.on(sourceEditor, eventsToForward, handleEvent);
 
@@ -711,11 +748,19 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		utils.each(groups, function (_, menuItems) {
-			group = dom.createElement('div', {
-				className: 'sceditor-group'
+			var commandNames = menuItems.split(',');
+			var isViewGroup = commandNames.every(function (commandName) {
+				var viewCommand = commands[commandName];
+
+				return viewCommand && viewCommand.view;
 			});
 
-			utils.each(menuItems.split(','), function (_, commandName) {
+			group = dom.createElement('div', {
+				className: 'sceditor-group' +
+					(isViewGroup ? ' sceditor-group-views' : '')
+			});
+
+			utils.each(commandNames, function (_, commandName) {
 				var	button, shortcut,
 					command  = commands[commandName];
 
@@ -731,6 +776,10 @@ export default function SCEditor(original, userOptions) {
 							command.tooltip || commandName)
 				}, true).firstChild;
 
+				if (isViewGroup) {
+					dom.addClass(button, 'text');
+				}
+
 				if (icons && icons.create) {
 					var icon = icons.create(commandName);
 					if (icon) {
@@ -742,6 +791,8 @@ export default function SCEditor(original, userOptions) {
 
 				button._sceTxtMode = !!command.txtExec;
 				button._sceWysiwygMode = !!command.exec;
+				button._sceView = !!command.view;
+				button._scePreview = !!command.allowInPreview;
 				dom.toggleClass(button, 'disabled', !command.exec);
 				dom.on(button, 'click', function (e) {
 					if (!dom.hasClass(button, 'disabled')) {
@@ -765,7 +816,7 @@ export default function SCEditor(original, userOptions) {
 				}
 
 				if (shortcut) {
-					base.addShortcut(shortcut, commandName);
+					base.addShortcut(shortcut, command.key || commandName);
 				}
 
 				if (command.state) {
@@ -1061,10 +1112,19 @@ export default function SCEditor(original, userOptions) {
 	 * @private
 	 */
 	updateToolBar = function (disable) {
-		var mode = base.inSourceMode() ? '_sceTxtMode' : '_sceWysiwygMode';
+		var inSource = base.inSourceMode();
+		var inPreview = base.mode() === 'preview';
 
 		utils.each(toolbarButtons, function (_, button) {
-			dom.toggleClass(button, 'disabled', disable || !button[mode]);
+			var off = !!disable;
+
+			if (!off && inPreview) {
+				off = !(button._sceView || button._scePreview);
+			} else if (!off) {
+				off = !button[inSource ? '_sceTxtMode' : '_sceWysiwygMode'];
+			}
+
+			dom.toggleClass(button, 'disabled', off);
 		});
 	};
 
@@ -1350,6 +1410,7 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		dom.off(globalDoc, 'click', handleDocumentClick);
+		dom.off(globalDoc, 'selectionchange', syncSourceSelection);
 
 		var form = original.form;
 		if (form) {
@@ -1359,7 +1420,7 @@ export default function SCEditor(original, userOptions) {
 
 		dom.off(window, 'pagehide', base.updateOriginal);
 		dom.off(window, 'pageshow', handleFormReset);
-		dom.remove(sourceEditor);
+		dom.remove(sourceWrap);
 		dom.remove(toolbar);
 		dom.remove(editorContainer);
 
@@ -1789,6 +1850,7 @@ export default function SCEditor(original, userOptions) {
 		sourceEditor.scrollTop = scrollTop;
 		sourceEditor.focus();
 
+		refreshSourceHighlight();
 		triggerValueChanged();
 	};
 
@@ -2078,6 +2140,7 @@ export default function SCEditor(original, userOptions) {
 	base.setSourceEditorValue = function (value) {
 		sourceEditor.value = value;
 
+		refreshSourceHighlight();
 		triggerValueChanged();
 	};
 
@@ -2123,37 +2186,284 @@ export default function SCEditor(original, userOptions) {
 	 * @name sourceMode^2
 	 * @memberOf SCEditor.prototype
 	 */
+	/**
+	 * Current editing surface: wysiwyg, preview or source
+	 *
+	 * @private
+	 * @return {string}
+	 */
+	function editorMode() {
+		if (dom.hasClass(editorContainer, 'previewMode')) {
+			return 'preview';
+		}
+
+		if (dom.hasClass(editorContainer, 'sourceMode')) {
+			return 'source';
+		}
+
+		return 'wysiwyg';
+	}
+
+	/**
+	 * Stylesheet URLs the preview should load
+	 *
+	 * @private
+	 * @return {Array<string>}
+	 */
+	function previewStylesheets() {
+		var value = options.previewStyle;
+		var list = Array.isArray(value) ?
+			value : String(value || '').split(',');
+		var hrefs = [];
+
+		list.forEach(function (href) {
+			href = String(href || '').trim();
+
+			if (href && domPurify.isValidAttribute('link', 'href', href)) {
+				hrefs.push(href);
+			}
+		});
+
+		return hrefs;
+	}
+
+	/**
+	 * Fills the preview document with the saved HTML and the preview CSS.
+	 * The document does not load the editor stylesheet, so the bundle
+	 * decides the background and the text colour.
+	 *
+	 * @private
+	 * @param {string} html
+	 */
+	function renderPreview(html) {
+		var doc = previewEditor.contentDocument;
+		var links = previewStylesheets().map(function (href) {
+			return '<link rel="stylesheet" href="' +
+				escape.entities(href) + '">';
+		}).join('');
+
+		doc.open();
+		doc.write(
+			'<!DOCTYPE html><html><head>' +
+			'<meta charset="' + options.charset + '">' +
+			'<style>html,body{margin:0;min-height:100%}</style>' +
+			links +
+			'</head><body></body></html>'
+		);
+		doc.close();
+		doc.body.innerHTML = sanitize(html || '');
+		dom.on(doc, 'keydown', handleKeyDown);
+	}
+
+	/**
+	 * Paints the code view in Monokai colours.
+	 * The textarea stays the real editor; the pre only mirrors it.
+	 * @private
+	 */
+	function refreshSourceHighlight() {
+		sourceView.innerHTML = highlightSource(sourceEditor.value);
+		syncSourceScroll();
+		syncSourceSelection();
+	}
+
+	/**
+	 * Draws the code selection behind the coloured glyphs.
+	 * The textarea selection is transparent, so it does not
+	 * cover the syntax colours.
+	 * @private
+	 */
+	function syncSourceSelection() {
+		var start = sourceEditor.selectionStart;
+		var end = sourceEditor.selectionEnd;
+		var boxes = sourceView.querySelectorAll('.sce-selection');
+		var range, rects, origin, i, rect, box, top, left;
+
+		for (i = 0; i < boxes.length; i++) {
+			dom.remove(boxes[i]);
+		}
+
+		if (start === end) {
+			return;
+		}
+
+		range = rangeFromOffsets(sourceView, start, end);
+
+		if (!range) {
+			return;
+		}
+
+		rects = range.getClientRects();
+		origin = sourceView.getBoundingClientRect();
+
+		for (i = 0; i < rects.length; i++) {
+			rect = rects[i];
+
+			if ((!rect.width && !rect.height) ||
+					selectionCovered(rects, i)) {
+				continue;
+			}
+
+			box = dom.createElement('div', {
+				className: 'sce-selection'
+			});
+			top = rect.top - origin.top + sourceView.scrollTop;
+			left = rect.left - origin.left + sourceView.scrollLeft;
+			box.style.top = top + 'px';
+			box.style.left = left + 'px';
+			box.style.width = rect.width + 'px';
+			box.style.height = rect.height + 'px';
+			dom.appendChild(sourceView, box);
+		}
+	}
+
+	/**
+	 * Skips a selection rect that sits inside an earlier one.
+	 * Overlapping bands would stack into a darker patch.
+	 *
+	 * @private
+	 * @param {ClientRectList} rects
+	 * @param {number} index
+	 * @return {boolean}
+	 */
+	function selectionCovered(rects, index) {
+		var rect = rects[index];
+		var i, other;
+
+		for (i = 0; i < index; i++) {
+			other = rects[i];
+
+			if (rect.top >= other.top - 0.5 &&
+					rect.bottom <= other.bottom + 0.5 &&
+					rect.left >= other.left - 0.5 &&
+					rect.right <= other.right + 0.5) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Maps textarea offsets onto the coloured text nodes.
+	 *
+	 * @private
+	 * @param {HTMLElement} root
+	 * @param {number} start
+	 * @param {number} end
+	 * @return {Range|null}
+	 */
+	function rangeFromOffsets(root, start, end) {
+		var doc = root.ownerDocument;
+		var walker = doc.createTreeWalker(
+			root,
+			NodeFilter.SHOW_TEXT,
+			null
+		);
+		var range = doc.createRange();
+		var node = walker.nextNode();
+		var seen = 0;
+		var next = 0;
+		var started = false;
+		var last = null;
+
+		while (node) {
+			next = seen + node.nodeValue.length;
+
+			if (!started && start <= next) {
+				range.setStart(node, start - seen);
+				started = true;
+			}
+
+			if (started && end <= next) {
+				range.setEnd(node, end - seen);
+				return range;
+			}
+
+			seen = next;
+			last = node;
+			node = walker.nextNode();
+		}
+
+		if (!started || !last) {
+			return null;
+		}
+
+		range.setEnd(last, last.nodeValue.length);
+		return range;
+	}
+
+	/**
+	 * Keeps the coloured layer on the same scroll position.
+	 * @private
+	 */
+	function syncSourceScroll() {
+		sourceView.scrollTop = sourceEditor.scrollTop;
+		sourceView.scrollLeft = sourceEditor.scrollLeft;
+	}
+
+	/**
+	 * Shows one surface and hides the other two
+	 *
+	 * @private
+	 * @param {string} mode
+	 */
+	function showMode(mode) {
+		dom.hide(wysiwygEditor);
+		dom.hide(previewEditor);
+		dom.hide(sourceWrap);
+
+		if (mode === 'preview') {
+			dom.show(previewEditor);
+		} else if (mode === 'source') {
+			dom.show(sourceWrap);
+			syncSourceScroll();
+			syncSourceSelection();
+		} else {
+			dom.show(wysiwygEditor);
+		}
+
+		dom.removeClass(editorContainer, 'wysiwygMode');
+		dom.removeClass(editorContainer, 'previewMode');
+		dom.removeClass(editorContainer, 'sourceMode');
+		dom.addClass(editorContainer, mode === 'wysiwyg' ?
+			'wysiwygMode' : mode + 'Mode');
+	}
+
 	base.sourceMode = function (enable) {
-		var inSourceMode = base.inSourceMode();
-
 		if (typeof enable !== 'boolean') {
-			return inSourceMode;
+			return base.inSourceMode();
 		}
 
-		if ((inSourceMode && !enable) || (!inSourceMode && enable)) {
-			base.toggleSourceMode();
-		}
+		base.mode(enable ? 'source' : 'wysiwyg');
 
 		return base;
 	};
 
 	/**
-	 * Switches between the WYSIWYG and source modes
+	 * Gets or sets the current surface.
 	 *
+	 * @param {string} [mode] wysiwyg, preview or source
+	 * @return {string|this}
 	 * @function
-	 * @name toggleSourceMode
-	 * @since 1.4.0
+	 * @name mode
 	 * @memberOf SCEditor.prototype
 	 */
-	base.toggleSourceMode = function () {
-		var isInSourceMode = base.inSourceMode();
+	base.mode = function (mode) {
+		var from = editorMode();
 
-		// don't allow switching to WYSIWYG if doesn't support it
-		if (!browser.isWysiwygSupported && isInSourceMode) {
-			return;
+		if (mode !== 'wysiwyg' && mode !== 'preview' && mode !== 'source') {
+			return from;
 		}
 
-		if (!isInSourceMode) {
+		if (mode === from) {
+			return base;
+		}
+
+		if (mode === 'wysiwyg' && !browser.isWysiwygSupported) {
+			return base;
+		}
+
+		if (from === 'wysiwyg') {
 			rangeHelper.saveRange();
 			rangeHelper.clear();
 		}
@@ -2161,20 +2471,29 @@ export default function SCEditor(original, userOptions) {
 		currentSelection = null;
 		base.blur();
 
-		if (isInSourceMode) {
-			base.setWysiwygEditorValue(base.getSourceEditorValue());
-		} else {
+		if (from === 'wysiwyg') {
 			base.setSourceEditorValue(base.getWysiwygEditorValue());
+		} else if (from === 'source') {
+			base.setWysiwygEditorValue(base.getSourceEditorValue());
 		}
 
-		dom.toggle(sourceEditor);
-		dom.toggle(wysiwygEditor);
+		if (mode === 'preview') {
+			renderPreview(sourceEditor.value);
+		}
 
-		dom.toggleClass(editorContainer, 'wysiwygMode', isInSourceMode);
-		dom.toggleClass(editorContainer, 'sourceMode', !isInSourceMode);
-
+		showMode(mode);
 		updateToolBar();
 		updateActiveButtons();
+
+		return base;
+	};
+
+	base.toggleSourceMode = function () {
+		if (!browser.isWysiwygSupported && base.inSourceMode()) {
+			return;
+		}
+
+		base.mode(base.inSourceMode() ? 'wysiwyg' : 'source');
 	};
 
 	/**
@@ -2376,6 +2695,7 @@ export default function SCEditor(original, userOptions) {
 		var firstBlock, parent;
 		var activeClass = 'active';
 		var doc         = wysiwygDocument;
+		var isPreview   = base.mode() === 'preview';
 		var isSource    = base.sourceMode();
 
 		if (base.readOnly()) {
@@ -2385,7 +2705,7 @@ export default function SCEditor(original, userOptions) {
 			return;
 		}
 
-		if (!isSource) {
+		if (!isSource && !isPreview) {
 			parent     = rangeHelper.parentNode();
 			firstBlock = rangeHelper.getFirstBlockParent(parent);
 		}
@@ -2394,11 +2714,15 @@ export default function SCEditor(original, userOptions) {
 			var state      = 0;
 			var btn        = toolbarButtons[btnStateHandlers[j].name];
 			var stateFn    = btnStateHandlers[j].state;
-			var isDisabled = (isSource && !btn._sceTxtMode) ||
-						(!isSource && !btn._sceWysiwygMode);
+			var staysInPreview = btn._sceView || btn._scePreview;
+			var isDisabled = isPreview ? !staysInPreview :
+				((isSource && !btn._sceTxtMode) ||
+					(!isSource && !btn._sceWysiwygMode));
 
-			if (utils.isString(stateFn)) {
-				if (!isSource) {
+			if (isPreview && !staysInPreview) {
+				state = 0;
+			} else if (utils.isString(stateFn)) {
+				if (!isSource && !isPreview) {
 					try {
 						state = doc.queryCommandEnabled(stateFn) ? 0 : -1;
 
@@ -2740,6 +3064,10 @@ export default function SCEditor(original, userOptions) {
 	base.focus = function (handler, excludeWysiwyg, excludeSource) {
 		if (utils.isFunction(handler)) {
 			base.bind('focus', handler, excludeWysiwyg, excludeSource);
+		} else if (base.mode() === 'preview') {
+			if (previewEditor.contentWindow) {
+				previewEditor.contentWindow.focus();
+			}
 		} else if (!base.inSourceMode()) {
 			// Already has focus so do nothing
 			if (dom.find(wysiwygDocument, ':focus').length) {
@@ -3089,7 +3417,13 @@ export default function SCEditor(original, userOptions) {
 
 		if (utils.isString(cmd)) {
 			shortcutHandlers[shortcut] = function () {
-				handleCommand(toolbarButtons[cmd], base.commands[cmd]);
+				var button = toolbarButtons[cmd];
+
+				if (button && dom.hasClass(button, 'disabled')) {
+					return;
+				}
+
+				handleCommand(button, base.commands[cmd]);
 
 				return false;
 			};

@@ -1,64 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 	<head>
-		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+		<meta charset="utf-8">
+		<title>Редактор</title>
 
-		<title>SCEditor Demo</title>
-
-		<link rel="stylesheet" href="../minified/themes/square.min.css" />
-		  
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&amp;display=swap">
+		<link rel="stylesheet" href="../minified/themes/square.min.css">
 		<script src="../minified/sceditor.min.js"></script>
 		<script src="../minified/icons/monocons.min.js"></script>
 		<script src="../minified/formats/xhtml.min.js"></script>
+		<script src="../minified/languages/ru.min.js"></script>
+		<script src="../minified/plugins/undo.min.js"></script>
 
 		<style>
-			html {
-				font-family: Arial, Helvetica, sans-serif;
+			html, body {
+				margin: 0;
+				background: #fff;
+			}
+			body {
+				padding: 12px 16px 24px;
+				font-family: Verdana, Arial, Helvetica, sans-serif;
 				font-size: 13px;
 			}
-			form div {
-				padding: .5em;
+			form {
+				max-width: 980px;
 			}
-			code:before {
-				position: absolute;
-				content: 'Code:';
-				top: -1.35em;
-				left: 0;
-			}
-			code {
-				margin-top: 1.5em;
-				position: relative;
-				background: #eee;
-				border: 1px solid #aaa;
-				white-space: pre;
-				padding: .25em;
-				min-height: 1.25em;
-			}
-			code:before, code {
-				display: block;
-				text-align: left;
+			textarea[name="rich_content"] {
+				width: 100%;
+				height: 420px;
 			}
 		</style>
 	</head>
 	<body>
 		<form action="" method="post">
-			<div>
-				<textarea id="example" style="height:300px;width:600px;"><p><strong>SCEditor</strong></p><p>Give it a try.</p></textarea>
-
-			</div>
-
+			<textarea name="rich_content"><h2>Утренний выпуск</h2><p>Короткий лид заметки: о чём речь и почему это стоит дочитать.</p><p>Абзац с <strong>жирным</strong>, <em>курсивом</em> и <span style="color:#8a4b08">цветом</span>. Следующий абзац стоит отдельно, с воздухом между ними.</p><blockquote>Так на сайте выглядит врезка: чужая речь или мысль, которую хочется отделить от колонки.</blockquote><p><img src="preview-mark.svg?v=2" alt="Снимок к заметке"></p><h3>Подробности</h3><p style="text-align:center">Текст по центру.</p><ul><li>Первый пункт</li><li>Второй пункт</li></ul><table><tbody><tr><td>Слева</td><td>Справа</td></tr></tbody></table><pre><code>код</code></pre></textarea>
 		</form>
 
-
 		<script>
-			var textarea = document.getElementById('example');
-			sceditor.create(textarea, {
-				format: 'xhtml',
-				icons: 'monocons',
-				style: '../minified/themes/content/default.min.css'
+			var textareas = document.querySelectorAll('textarea[name=rich_content]');
+
+			textareas.forEach(function (textarea) {
+				sceditor.create(textarea, {
+					format: 'xhtml',
+					plugins: 'undo',
+					icons: 'monocons',
+					locale: 'ru',
+					charset: 'utf-8',
+					spellcheck: true,
+					fonts: 'Comfortaa,Verdana',
+					style: '../minified/themes/content/default.min.css',
+					previewStyle: 'preview.css',
+					toolbar: 'bold,italic,underline,strike|' +
+						'heading|' +
+						'left,center,right,justify|font,size,color|' +
+						'removeformat|' +
+						'bulletlist,orderedlist|' +
+						'table,horizontalrule|' +
+						'code|' +
+						'maximize|preview,view,source',
+					colors: '#000000,#44B8FF,#1E92F7,#0074D9,#005DC2,#00369B,#b3d5f4|' +
+						'#444444,#C3FFFF,#9DF9FF,#7FDBFF,#68C4E8,#419DC1,#d9f4ff|' +
+						'#666666,#72FF84,#4CEA5E,#2ECC40,#17B529,#008E02,#c0f0c6|' +
+						'#888888,#FFFF44,#FFFA1E,#FFDC00,#E8C500,#C19E00,#fff5b3|' +
+						'#aaaaaa,#FFC95F,#FFA339,#FF851B,#E86E04,#C14700,#ffdbbb|' +
+						'#cccccc,#FF857A,#FF5F54,#FF4136,#E82A1F,#C10300,#ffc6c3|' +
+						'#eeeeee,#FF56FF,#FF30DC,#F012BE,#D900A7,#B20080,#fbb8ec|' +
+						'#ffffff,#F551FF,#CF2BE7,#B10DC9,#9A00B2,#9A00B2,#e8b6ef'
+				});
+			});
+
+			document.querySelectorAll('form').forEach(function (form) {
+				form.addEventListener('submit', function () {
+					textareas.forEach(function (textarea) {
+						var instance = sceditor.instance(textarea);
+						if (instance) {
+							textarea.value = instance.val();
+						}
+					});
+				});
 			});
 		</script>
-
-		<p>SCEditor is licensed under the <a href="http://www.opensource.org/licenses/mit-license.php">MIT</a></p>
 	</body>
 </html>

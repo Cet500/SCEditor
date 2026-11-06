@@ -42,6 +42,9 @@ module.exports = (grunt) => {
 			all: {
 				options: {
 					urls: ['http://localhost:9001/tests/unit/index.html'],
+					// Idle limit between Chrome messages, and the page-load
+					// limit. The suite itself finishes in about 12s.
+					timeout: 60000,
 					// Some tests rely on failing URLs so want to ignore them
 					console: false,
 					inject: path.join(__dirname, './tests/test-bridge.js'),

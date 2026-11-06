@@ -26,9 +26,6 @@ var _templates = {
 	fontOpt: '<a class="sceditor-font-option" href="#" ' +
 		'data-font="{font}"><font face="{font}">{font}</font></a>',
 
-	sizeOpt: '<a class="sceditor-fontsize-option" data-size="{size}" ' +
-		'href="#"><font size="{size}">{size}</font></a>',
-
 	pastetext:
 		'<div><label for="txt">{label}</label> ' +
 			'<textarea cols="20" rows="7" id="txt"></textarea></div>' +

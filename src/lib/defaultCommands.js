@@ -172,10 +172,68 @@ var defaultCmds = {
 		tooltip: 'Font Name'
 	},
 	// END_COMMAND
+	// START_COMMAND: Heading
+	heading: {
+		_dropDown: function (editor, caller, callback) {
+			var content = dom.createElement('div');
+			var labels = {
+				p: 'Paragraph'
+			};
+			var level;
+
+			for (level = 1; level <= 6; level++) {
+				labels['h' + level] = 'Heading ' + level;
+			}
+
+			dom.on(content, 'click', 'a', function (e) {
+				callback(dom.data(this, 'tag'));
+				editor.closeDropDown(true);
+				e.preventDefault();
+			});
+
+			(editor.opts.headings || '').split(',').forEach(function (name) {
+				var tag = name.trim().toLowerCase();
+				var label = labels[tag];
+				var link;
+				var sample;
+
+				if (!label) {
+					return;
+				}
+
+				link = dom.createElement('a');
+				link.className = 'sceditor-heading-option';
+				link.href = '#';
+				dom.data(link, 'tag', tag);
+
+				sample = dom.createElement(tag);
+				sample.textContent = editor._(label);
+				dom.appendChild(link, sample);
+				dom.appendChild(content, link);
+			});
+
+			editor.createDropDown(caller, 'heading-picker', content);
+		},
+		state: function (parents, firstBlock) {
+			var node = firstBlock || parents;
+
+			return !!node && /^H[1-6]$/.test(node.nodeName);
+		},
+		exec: function (caller) {
+			var editor = this;
+
+			defaultCmds.heading._dropDown(editor, caller, function (tag) {
+				editor.execCommand('formatBlock', '<' + tag + '>');
+			});
+		},
+		tooltip: 'Heading'
+	},
+	// END_COMMAND
 	// START_COMMAND: Size
 	size: {
 		_dropDown: function (editor, caller, callback) {
-			var	content = dom.createElement('div');
+			var content = dom.createElement('div');
+			var seen = {};
 
 			dom.on(content, 'click', 'a', function (e) {
 				callback(dom.data(this, 'size'));
@@ -183,19 +241,34 @@ var defaultCmds = {
 				e.preventDefault();
 			});
 
-			for (var i = 1; i <= 7; i++) {
-				dom.appendChild(content, _tmpl('sizeOpt', {
-					size: i
-				}, true));
-			}
+			(editor.opts.fontSizes || '').split(',').forEach(function (name) {
+				var size = parseInt(name, 10);
+				var link;
+
+				if (!size || size < 1 || seen[size]) {
+					return;
+				}
+
+				seen[size] = true;
+				link = dom.createElement('a');
+				link.className = 'sceditor-fontsize-option';
+				link.href = '#';
+				dom.data(link, 'size', String(size));
+				link.style.fontSize = size + 'px';
+				link.textContent = size + 'px';
+				dom.appendChild(content, link);
+			});
 
 			editor.createDropDown(caller, 'fontsize-picker', content);
 		},
 		exec: function (caller) {
 			var editor = this;
 
-			defaultCmds.size._dropDown(editor, caller, function (fontSize) {
-				editor.execCommand('fontsize', fontSize);
+			defaultCmds.size._dropDown(editor, caller, function (size) {
+				editor.wysiwygEditorInsertHtml(
+					'<span style="font-size:' + size + 'px;">',
+					'</span>'
+				);
 			});
 		},
 		tooltip: 'Font Size'
@@ -849,6 +922,7 @@ var defaultCmds = {
 
 	// START_COMMAND: Maximize
 	maximize: {
+		allowInPreview: true,
 		state: function () {
 			return this.maximize();
 		},
@@ -865,21 +939,67 @@ var defaultCmds = {
 	},
 	// END_COMMAND
 
+	// START_COMMAND: Preview
+	// view: true marks a mode button. A toolbar group made only of these
+	// sits on the right as the view switch. Add further modes the same way.
+	preview: {
+		view: true,
+		name: 'Preview',
+		state: function () {
+			return this.mode() === 'preview';
+		},
+		exec: function () {
+			this.mode('preview');
+		},
+		txtExec: function () {
+			this.mode('preview');
+		},
+		tooltip: 'Site preview'
+	},
+	// END_COMMAND
+
+	// START_COMMAND: View
+	view: {
+		view: true,
+		name: 'View',
+		state: function () {
+			return this.mode() === 'wysiwyg';
+		},
+		exec: function () {
+			this.mode('wysiwyg');
+			this.focus();
+		},
+		txtExec: function () {
+			this.mode('wysiwyg');
+			this.focus();
+		},
+		tooltip: 'Normal view'
+	},
+	// END_COMMAND
+
 	// START_COMMAND: Source
 	source: {
+		view: true,
+		name: 'Code',
 		state: function () {
 			return this.sourceMode();
 		},
 		exec: function () {
-			this.toggleSourceMode();
+			this.sourceMode(true);
 			this.focus();
 		},
 		txtExec: function () {
-			this.toggleSourceMode();
+			this.sourceMode(true);
 			this.focus();
 		},
 		tooltip: 'View source',
-		shortcut: 'Ctrl+Shift+S'
+		shortcut: 'Ctrl+Shift+S',
+		key: function () {
+			this.toggleSourceMode();
+			this.focus();
+
+			return false;
+		}
 	},
 	// END_COMMAND
 

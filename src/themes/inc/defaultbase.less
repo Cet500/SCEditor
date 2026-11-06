@@ -69,6 +69,84 @@ div.sceditor-dropdown div {
 		margin: 7px 5px;
 	}
 
+	/* The preview bundle paints this frame, including a dark page. */
+	.sceditor-container.previewMode iframe {
+		margin: 0;
+		background: transparent;
+		width: 100% !important;
+	}
+
+	/* Code view. Colours from Sublime's Monokai.sublime-color-scheme. */
+	.sceditor-container .sceditor-source {
+		position: relative;
+		flex: 1 1 0%;
+		min-height: 0;
+		margin: 0;
+		background: #282923;
+		overflow: hidden;
+	}
+	.sceditor-container .sceditor-source-view,
+	.sceditor-container .sceditor-source textarea {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		box-sizing: border-box;
+		margin: 0 !important;
+		border: 0;
+		padding: 12px 16px;
+		width: 100% !important;
+		height: 100% !important;
+		overflow: auto;
+		resize: none;
+		background: transparent;
+		font-family: Consolas, Menlo, "DejaVu Sans Mono", Monaco, monospace;
+		font-size: 18px;
+		font-weight: 400;
+		font-synthesis: none;
+		-webkit-font-smoothing: auto;
+		-moz-osx-font-smoothing: auto;
+		font-variant-ligatures: none;
+		line-height: 24px;
+		letter-spacing: 0;
+		tab-size: 4;
+		white-space: pre-wrap;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+	}
+	.sceditor-container .sceditor-source-view {
+		z-index: 0;
+		pointer-events: none;
+		color: #f8f8f2;
+	}
+	.sceditor-container .sceditor-source textarea {
+		z-index: 1;
+		color: transparent;
+		-webkit-text-fill-color: transparent;
+		text-shadow: none;
+		caret-color: #f8f8f1;
+	}
+	/* Native selection sits above the colours and muddies them.
+	   The band is drawn behind the glyphs instead. */
+	.sceditor-container .sceditor-source textarea::selection,
+	.sceditor-container .sceditor-source textarea::-moz-selection {
+		background: transparent;
+		color: transparent;
+	}
+	.sceditor-container .sceditor-source-view .sce-selection {
+		position: absolute;
+		z-index: -1;
+		background: #3c3c34;
+		pointer-events: none;
+	}
+	.sceditor-container .sceditor-source-view .sce-c { color: #74705d; }
+	.sceditor-container .sceditor-source-view .sce-t { color: #f92472; }
+	.sceditor-container .sceditor-source-view .sce-a { color: #a6e22c; }
+	.sceditor-container .sceditor-source-view .sce-s { color: #e7db74; }
+	.sceditor-container .sceditor-source-view .sce-n { color: #ac80ff; }
+	.sceditor-container .sceditor-source-view .sce-b { color: #67d8ef; }
+
 	div.sceditor-dnd-cover {
 		position: absolute;
 		top: 0;
@@ -226,6 +304,7 @@ div.sceditor-dropdown div {
 
 		div.sceditor-font-picker,
 		div.sceditor-fontsize-picker,
+		div.sceditor-heading-picker,
 		div.sceditor-format {
 			padding: 6px 0;
 		}
@@ -245,6 +324,7 @@ div.sceditor-dropdown div {
 
 		.sceditor-fontsize-option,
 		.sceditor-font-option,
+		.sceditor-heading-option,
 		.sceditor-format a {
 			display: block;
 			padding: 7px 10px;
@@ -253,8 +333,31 @@ div.sceditor-dropdown div {
 			color: #222;
 		}
 
+		.sceditor-heading-option p,
+		.sceditor-heading-option h1,
+		.sceditor-heading-option h2,
+		.sceditor-heading-option h3,
+		.sceditor-heading-option h4,
+		.sceditor-heading-option h5,
+		.sceditor-heading-option h6 {
+			margin: 0;
+			line-height: 1.2;
+			font-weight: bold;
+		}
+
+		.sceditor-heading-option p { font-size: 13px; font-weight: normal; }
+		.sceditor-heading-option h1 { font-size: 22px; }
+		.sceditor-heading-option h2 { font-size: 18px; }
+		.sceditor-heading-option h3 { font-size: 16px; }
+		.sceditor-heading-option h4 { font-size: 15px; }
+		.sceditor-heading-option h5 { font-size: 14px; }
+		.sceditor-heading-option h6 { font-size: 13px; }
+
 		.sceditor-fontsize-option {
 			padding: 7px 13px;
+			font-weight: normal;
+			line-height: 1.2;
+			white-space: nowrap;
 		}
 
 		.sceditor-color-column {
@@ -278,6 +381,9 @@ div.sceditor-dropdown div {
 	 * Toolbar styleing
 	 */
 	div.sceditor-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: stretch;
 		flex-shrink: 0;
 		overflow: hidden;
 		padding: 3px 5px 2px;
@@ -300,6 +406,11 @@ div.sceditor-dropdown div {
 
 			.rounded(3px);
 
+		}
+
+		div.sceditor-group-views {
+			margin-left: auto;
+			margin-right: 0;
 		}
 
 		.sceditor-button {
@@ -404,6 +515,11 @@ div.sceditor-dropdown div {
 .rtl {
 	div.sceditor-toolbar {
 		text-align: right;
+	}
+
+	div.sceditor-group-views {
+		margin-left: 0;
+		margin-right: auto;
 	}
 
 	.sceditor-button {

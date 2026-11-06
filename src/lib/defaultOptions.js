@@ -16,7 +16,7 @@ export default {
 		'left,center,right,justify|font,size,color,removeformat|' +
 		'cut,copy,pastetext|bulletlist,orderedlist,indent,outdent|' +
 		'table|code,quote|horizontalrule,image,email,link,unlink|' +
-		'youtube,date,time|ltr,rtl|print,maximize,source',
+		'youtube,date,time|ltr,rtl|print,maximize|preview,view,source',
 
 	/**
 	 * Comma separated list of commands to excludes from the toolbar
@@ -34,12 +34,38 @@ export default {
 	style: 'themes/content/default.min.css',
 
 	/**
+	 * Stylesheets for the read-only preview. A URL, or a list of URLs.
+	 *
+	 * The bundle paints the whole preview, background included, so a
+	 * light page and a dark page are both possible.
+	 *
+	 * @type {string|Array<string>}
+	 */
+	previewStyle: '',
+
+	/**
 	 * Comma separated list of fonts for the font selector
 	 *
 	 * @type {string}
 	 */
 	fonts: 'Arial,Arial Black,Comic Sans MS,Courier New,Georgia,Impact,' +
 		'Sans-serif,Serif,Times New Roman,Trebuchet MS,Verdana',
+
+	/**
+	 * Comma separated block tags for the heading menu.
+	 * p is a normal paragraph. h1–h6 are headings.
+	 *
+	 * @type {string}
+	 */
+	headings: 'p,h1,h2,h3,h4,h5,h6',
+
+	/**
+	 * Comma separated pixel sizes for the font size menu.
+	 * A project can replace the list with the sizes it needs.
+	 *
+	 * @type {string}
+	 */
+	fontSizes: '14,16,18,20,24,32,48',
 
 	/**
 	 * Colors should be comma separated and have a bar | to signal a new

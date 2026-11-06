@@ -80,7 +80,7 @@
 					caller,
 					function (size) {
 						editor.insertText('<span style="font-size:' +
-							size + ';">', '</span>');
+							size + 'px;">', '</span>');
 					}
 				);
 			}
