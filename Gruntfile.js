@@ -77,35 +77,13 @@ module.exports = (grunt) => {
 				files: [
 					{
 						expand: true,
-						src: ['minified/**', 'languages/**'],
+						cwd: 'minified/',
+						src: ['**'],
 						dest: 'dist/'
 					},
 					{
 						expand: true,
-						cwd: 'src/',
-						src: ['plugins/**.js', 'formats/**.js', 'icons/**.js'],
-						dest: 'dist/development/'
-					},
-					{
-						expand: true,
-						cwd: 'src/themes/',
-						src: 'content/**',
-						dest: 'dist/development/themes/'
-					},
-					{
-						expand: true,
-						src: 'README.md',
-						dest: 'dist/'
-					},
-					{
-						expand: true,
-						src: 'MIT.txt',
-						dest: 'dist/'
-					},
-					{
-						expand: true,
-						cwd: 'distributable/data/',
-						src: 'example.html',
+						src: 'LICENSE.md',
 						dest: 'dist/'
 					}
 				]
@@ -143,13 +121,6 @@ module.exports = (grunt) => {
 						'./src/sceditor.js'
 					]
 				}
-			},
-			dist: {
-				files: {
-					'./dist/development/sceditor.js': [
-						'./src/sceditor.js'
-					]
-				}
 			}
 		},
 
@@ -173,7 +144,15 @@ module.exports = (grunt) => {
 						filter: 'isFile',
 						cwd: 'src/',
 						src: ['plugins/**.js', 'formats/**.js', 'icons/**.js'],
-						dest: 'minified/'
+						dest: 'minified/',
+						ext: '.min.js'
+					},
+					{
+						expand: true,
+						cwd: 'languages/',
+						src: ['en.js', 'ru.js'],
+						dest: 'minified/languages/',
+						ext: '.min.js'
 					}
 				]
 			}
@@ -194,22 +173,6 @@ module.exports = (grunt) => {
 						src: ['square.less'],
 						dest: 'minified/themes/',
 						ext: '.min.css'
-					}
-				]
-			},
-			dist: {
-				options: {
-					paths: ['src/themes/'],
-					cleancss: true
-				},
-				files: [
-					{
-						expand: true,
-						filter: 'isFile',
-						cwd: 'src/themes/',
-						src: ['square.less'],
-						dest: 'dist/development/themes/',
-						ext: '.css'
 					}
 				]
 			}
@@ -294,9 +257,7 @@ module.exports = (grunt) => {
 		'test',
 		'build',
 		'clean:dist',
-		'rollup:dist',
-		'copy:dist',
-		'less:dist'
+		'copy:dist'
 	]);
 
 	// Creates the simplified distributable ZIP

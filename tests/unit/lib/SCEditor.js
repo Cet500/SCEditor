@@ -54,7 +54,7 @@ QUnit.module('lib/SCEditor', {
 		reloadEditor();
 	},
 	after: function () {
-		defaultOptions.style = 'jquery.sceditor.default.css';
+		defaultOptions.style = 'themes/content/default.min.css';
 
 		delete SCEditor.formats.test;
 
