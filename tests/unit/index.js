@@ -6,5 +6,6 @@ import 'tests/unit/lib/RangeHelper.js';
 import 'tests/unit/lib/SCEditor.js';
 import 'tests/unit/lib/dom.js';
 import 'tests/unit/lib/escape.js';
+import 'tests/unit/lib/markers.js';
 import 'tests/unit/lib/utils.js';
 import 'tests/unit/formats/xhtml.js';

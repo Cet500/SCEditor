@@ -68,6 +68,21 @@ export default {
 	fontSizes: '14,16,18,20,24,32,48',
 
 	/**
+	 * Marker kinds kept as one piece in the editor.
+	 * The saved HTML stays the marker string, for example [image 1].
+	 * The preview draws a placeholder for each enabled kind.
+	 * Kinds: image, gallery, fa, blog. Empty turns them all off.
+	 *
+	 * Preview CSS restyles .sceditor-marker-image,
+	 * .sceditor-marker-gallery, .sceditor-marker-blog,
+	 * .sceditor-marker-num, .sceditor-marker-fa and
+	 * .sceditor-marker-name.
+	 *
+	 * @type {string|Array<string>}
+	 */
+	markers: '',
+
+	/**
 	 * Colors should be comma separated and have a bar | to signal a new
 	 * column.
 	 *

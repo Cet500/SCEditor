@@ -1,0 +1,99 @@
+import * as markers from 'src/lib/markers.js';
+
+QUnit.module('lib/markers');
+
+
+QUnit.test('enabled() keeps known kinds only', function (assert) {
+	assert.deepEqual(markers.enabled(''), {});
+	assert.deepEqual(markers.enabled('image, nope ,FA'), {
+		image: true,
+		fa: true
+	});
+	assert.deepEqual(markers.enabled(['blog', 'gallery']), {
+		blog: true,
+		gallery: true
+	});
+});
+
+
+QUnit.test('placeholders() leaves disabled kinds as text', function (assert) {
+	var html = '<p>[image 2]</p> [fa plus] [blog 9]';
+
+	assert.strictEqual(
+		markers.placeholders(html, markers.enabled('fa')),
+		'<p>[image 2]</p> ' +
+			'<span class="sceditor-marker sceditor-marker-fa ' +
+			'sceditor-marker-fa-solid">' +
+			'<span class="sceditor-marker-name">plus</span></span>' +
+			' [blog 9]'
+	);
+});
+
+
+QUnit.test('placeholders() draws a numbered block', function (assert) {
+	var kinds = markers.enabled('image,gallery,blog,fa');
+
+	assert.strictEqual(
+		markers.placeholders('<p>[image 2]</p>', kinds),
+		'<span class="sceditor-marker sceditor-marker-image">' +
+			'<span class="sceditor-marker-kind">image</span>' +
+			'<span class="sceditor-marker-num">2</span></span>'
+	);
+	assert.strictEqual(
+		markers.placeholders('<p>ряд [gallery 1 3]</p>', kinds),
+		'<p>ряд <span class="sceditor-marker sceditor-marker-gallery">' +
+			'<span class="sceditor-marker-kind">gallery</span>' +
+			'<span class="sceditor-marker-num">1\u20133</span></span></p>'
+	);
+	assert.strictEqual(
+		markers.placeholders('<pre><code>[image 1]</code></pre>', kinds),
+		'<pre><code>[image 1]</code></pre>'
+	);
+	assert.ok(
+		markers.placeholders('[fa brands telegram]', kinds)
+			.indexOf('sceditor-marker-fa-brands') > -1
+	);
+	assert.ok(
+		markers.placeholders(
+			'<p title="[image 4]">текст</p>',
+			kinds
+		).indexOf('title="[image 4]"') > -1
+	);
+});
+
+
+QUnit.test('protect() and expand() round-trip the marker string',
+	function (assert) {
+		var root = document.createElement('div');
+
+		root.innerHTML = '<p>до [image  7] после</p><pre>[image 1]</pre>';
+		markers.protect(root, markers.enabled('image'));
+
+		assert.strictEqual(
+			root.querySelectorAll('.sceditor-marker').length,
+			1
+		);
+		assert.strictEqual(
+			root.querySelector('.sceditor-marker')
+				.getAttribute('data-sceditor-marker'),
+			'[image 7]'
+		);
+		assert.strictEqual(
+			root.querySelector('.sceditor-marker').getAttribute(
+				'contenteditable'
+			),
+			'false'
+		);
+		assert.strictEqual(root.querySelector('pre').textContent, '[image 1]');
+
+		markers.expand(root);
+		assert.strictEqual(
+			root.querySelectorAll('.sceditor-marker').length,
+			0
+		);
+		assert.strictEqual(
+			root.querySelector('p').textContent,
+			'до [image 7] после'
+		);
+	}
+);

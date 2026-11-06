@@ -153,3 +153,30 @@ hr {
 	border: 0;
 	border-top: 1px solid #e0d2bc;
 }
+
+.sceditor-marker-image,
+.sceditor-marker-gallery,
+.sceditor-marker-blog {
+	margin: 1.4em 0;
+	padding: 28px 16px 32px;
+	background: #efe6d6;
+	border: 1px dashed #c4b090;
+	border-radius: 8px;
+	color: #8a5a2a;
+}
+
+.sceditor-marker-kind {
+	color: #a07848;
+}
+
+.sceditor-marker-num {
+	font-family: Georgia, "Iowan Old Style", Palatino, serif;
+	font-size: 42px;
+	color: #2a2118;
+}
+
+.sceditor-marker-fa {
+	border-color: #b5834a;
+	background: #efe2cc;
+	color: #4a3824;
+}

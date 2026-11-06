@@ -8,6 +8,7 @@ import _tmpl from './templates.js';
 import * as escape from './escape.js';
 import * as browser from './browser.js';
 import { highlightSource } from './sourceHighlight.js';
+import * as markers from './markers.js';
 import DOMPurify from 'dompurify';
 
 var globalWin  = window;
@@ -685,6 +686,7 @@ export default function SCEditor(original, userOptions) {
 		dom.on(wysiwygBody, 'keypress', handleKeyPress);
 		dom.on(wysiwygBody, 'keydown', handleKeyDown);
 		dom.on(wysiwygBody, 'keydown', handleBackSpace);
+		dom.on(wysiwygBody, 'input', protectWysiwygMarkers);
 		dom.on(wysiwygBody, 'keyup', appendNewLine);
 		dom.on(wysiwygBody, 'blur', valueChangedBlur);
 		dom.on(wysiwygBody, 'keyup', valueChangedKeyUp);
@@ -1645,6 +1647,7 @@ export default function SCEditor(original, userOptions) {
 		if (data.html) {
 			// Sanitize again in case plugins modified the HTML
 			pasteArea.innerHTML = sanitize(data.html);
+			markers.expand(pasteArea);
 
 			// fix any invalid nesting
 			dom.fixNesting(pasteArea);
@@ -1674,6 +1677,7 @@ export default function SCEditor(original, userOptions) {
 		var parent = rangeHelper.getFirstBlockParent();
 		base.wysiwygEditorInsertHtml(paste.val, null, true);
 		dom.merge(parent);
+		protectWysiwygMarkers();
 	};
 
 	/**
@@ -2045,6 +2049,7 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		dom.appendChild(wysiwygBody, tmp);
+		markers.expand(tmp);
 		dom.fixNesting(tmp);
 		dom.remove(tmp);
 
@@ -2123,6 +2128,7 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		wysiwygBody.innerHTML = sanitize(value);
+		protectWysiwygMarkers();
 
 		appendNewLine();
 		triggerValueChanged();
@@ -2246,13 +2252,42 @@ export default function SCEditor(original, userOptions) {
 		doc.write(
 			'<!DOCTYPE html><html><head>' +
 			'<meta charset="' + options.charset + '">' +
-			'<style>html,body{margin:0;min-height:100%}</style>' +
+			'<style>html,body{margin:0;min-height:100%}' +
+			markers.placeholderCss +
+			'</style>' +
 			links +
 			'</head><body></body></html>'
 		);
 		doc.close();
-		doc.body.innerHTML = sanitize(html || '');
+		doc.body.innerHTML = sanitize(
+			markers.placeholders(html || '', activeMarkerKinds())
+		);
 		dom.on(doc, 'keydown', handleKeyDown);
+	}
+
+	var protectingMarkers = false;
+
+	/**
+	 * Kinds turned on by the markers option.
+	 * @private
+	 * @return {Object<string, boolean>}
+	 */
+	function activeMarkerKinds() {
+		return markers.enabled(options.markers);
+	}
+
+	/**
+	 * Keeps enabled markers as single chips in the visual editor.
+	 * @private
+	 */
+	function protectWysiwygMarkers() {
+		if (protectingMarkers || !wysiwygBody) {
+			return;
+		}
+
+		protectingMarkers = true;
+		markers.protect(wysiwygBody, activeMarkerKinds());
+		protectingMarkers = false;
 	}
 
 	/**
