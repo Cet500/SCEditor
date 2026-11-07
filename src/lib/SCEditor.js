@@ -343,7 +343,12 @@ export default function SCEditor(original, userOptions) {
 		valueChangedBlur,
 		valueChangedKeyUp,
 		autoUpdate,
-		autoExpand;
+		autoExpand,
+		refreshBlockChrome,
+		scheduleBlockChrome,
+		blockChromeFrame,
+		blockChromeObserver,
+		blockChromeChanges;
 
 	/**
 	 * All the commands supported by the editor
@@ -428,6 +433,39 @@ export default function SCEditor(original, userOptions) {
 
 	// eslint-disable-next-line camelcase
 	base.__UNSTABLE__sanitize = sanitize;
+
+	/**
+	 * Moves the grips onto the blocks after the iframe has a real box.
+	 * Measuring while the frame is hidden piles every grip at the top.
+	 * @private
+	 */
+	refreshBlockChrome = function () {
+		if (dragState || !wysiwygBody || !wysiwygEditor ||
+				editorMode() !== 'wysiwyg') {
+			return;
+		}
+
+		if (!wysiwygEditor.getClientRects().length) {
+			return;
+		}
+
+		markers.labelBlocks(wysiwygBody);
+	};
+
+	/**
+	 * Coalesces layout changes from images, fonts and the admin page.
+	 * @private
+	 */
+	scheduleBlockChrome = function () {
+		if (blockChromeFrame || !wysiwygWindow) {
+			return;
+		}
+
+		blockChromeFrame = wysiwygWindow.requestAnimationFrame(function () {
+			blockChromeFrame = 0;
+			refreshBlockChrome();
+		});
+	};
 
 	/**
 	 * Creates the editor iframe and textarea
@@ -694,12 +732,31 @@ export default function SCEditor(original, userOptions) {
 		dom.on(wysiwygBody, 'keydown', handleBackSpace);
 		dom.on(wysiwygBody, 'pointerdown', startBlockDrag);
 		dom.on(wysiwygBody, 'load', function (e) {
-			if (dragState || dom.closest(e.target, '.sceditor-ghost')) {
+			if (dom.closest(e.target, '.sceditor-ghost')) {
 				return;
 			}
 
-			markers.labelBlocks(wysiwygBody);
+			scheduleBlockChrome();
 		}, dom.EVENT_CAPTURE);
+
+		if (typeof globalWin.ResizeObserver === 'function') {
+			blockChromeObserver = new globalWin.ResizeObserver(
+				scheduleBlockChrome);
+			blockChromeObserver.observe(wysiwygBody);
+			blockChromeObserver.observe(editorContainer);
+		}
+
+		if (typeof globalWin.MutationObserver === 'function') {
+			blockChromeChanges = new globalWin.MutationObserver(
+				scheduleBlockChrome);
+			blockChromeChanges.observe(wysiwygBody, {
+				childList: true
+			});
+		}
+
+		if (wysiwygDocument.fonts && wysiwygDocument.fonts.ready) {
+			wysiwygDocument.fonts.ready.then(scheduleBlockChrome);
+		}
 		dom.on(wysiwygBody, 'input', protectWysiwygMarkers);
 		dom.on(wysiwygBody, 'keyup', appendNewLine);
 		dom.on(wysiwygBody, 'blur', valueChangedBlur);
@@ -1264,6 +1321,8 @@ export default function SCEditor(original, userOptions) {
 			dom.height(editorContainer, height);
 		}
 
+		refreshBlockChrome();
+
 		return base;
 	};
 
@@ -1355,6 +1414,7 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		autoExpand();
+		refreshBlockChrome();
 
 		return base;
 	};
@@ -1447,6 +1507,22 @@ export default function SCEditor(original, userOptions) {
 
 		dom.off(window, 'pagehide', base.updateOriginal);
 		dom.off(window, 'pageshow', handleFormReset);
+
+		if (blockChromeObserver) {
+			blockChromeObserver.disconnect();
+			blockChromeObserver = null;
+		}
+
+		if (blockChromeChanges) {
+			blockChromeChanges.disconnect();
+			blockChromeChanges = null;
+		}
+
+		if (blockChromeFrame && wysiwygWindow) {
+			wysiwygWindow.cancelAnimationFrame(blockChromeFrame);
+			blockChromeFrame = 0;
+		}
+
 		dom.remove(sourceWrap);
 		dom.remove(toolbar);
 		dom.remove(editorContainer);
@@ -2495,6 +2571,12 @@ export default function SCEditor(original, userOptions) {
 		dom.removeClass(editorContainer, 'sourceMode');
 		dom.addClass(editorContainer, mode === 'wysiwyg' ?
 			'wysiwygMode' : mode + 'Mode');
+
+		// The mode class has to be in place first. Measuring before that
+		// bails out and leaves the grips missing after a return from code.
+		if (mode === 'wysiwyg') {
+			refreshBlockChrome();
+		}
 	}
 
 	base.sourceMode = function (enable) {
@@ -3080,19 +3162,7 @@ export default function SCEditor(original, userOptions) {
 	 * @return {boolean}
 	 */
 	var isDragBlock = function (el) {
-		var name;
-
-		if (!el || dom.is(el, '.sceditor-rail,.sceditor-drop,' +
-			'.sceditor-ghost,.sceditor-nlf')) {
-			return false;
-		}
-
-		name = el.nodeName;
-
-		return name === 'P' || name === 'DIV' || name === 'BLOCKQUOTE' ||
-			name === 'UL' || name === 'OL' || name === 'TABLE' ||
-			name === 'PRE' || name === 'HR' ||
-			(name.charAt(0) === 'H' && name.length === 2);
+		return markers.isDraggableBlock(el);
 	};
 
 	/**
@@ -3358,6 +3428,7 @@ export default function SCEditor(original, userOptions) {
 		stopBlockDrag();
 
 		if (!state.moved || !place || !block.parentNode) {
+			markers.labelBlocks(wysiwygBody);
 			return;
 		}
 

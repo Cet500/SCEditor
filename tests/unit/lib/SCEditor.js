@@ -788,3 +788,83 @@ QUnit.test('drag handle moves a block and is not saved', function (assert) {
 });
 
 
+QUnit.test('drag handles follow layout, source mode and loose images',
+	function (assert) {
+		var pixel = 'data:image/gif;base64,' +
+			'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+		var body;
+		var quoteTop;
+
+		function blocks() {
+			return Array.prototype.filter.call(body.children, function (el) {
+				return !el.classList.contains('sceditor-rail') &&
+					!el.classList.contains('sceditor-nlf');
+			});
+		}
+
+		function assertHandlesSitOnBlocks() {
+			var items = blocks();
+			var handles = body.querySelectorAll('.sceditor-drag');
+			var i;
+			var top;
+
+			assert.strictEqual(handles.length, items.length);
+
+			if (handles.length < 2) {
+				assert.ok(false, 'handles ' + handles.length);
+				return;
+			}
+
+			for (i = 0; i < items.length; i++) {
+				top = parseFloat(handles[i].style.top);
+				assert.ok(
+					Math.abs(top - (items[i].offsetTop + 2)) <= 1,
+					items[i].nodeName
+				);
+			}
+
+			assert.ok(parseFloat(handles[1].style.top) >
+				parseFloat(handles[0].style.top));
+		}
+
+		reloadEditor({
+			format: 'xhtml'
+		});
+		sceditor.val(
+			'<h2>Заголовок</h2>' +
+			'<p>слово слово слово слово слово слово слово слово ' +
+			'слово слово слово слово слово слово слово слово</p>' +
+			'<blockquote>Цитата, которой нужна ширина колонки, ' +
+			'чтобы переносы строк сдвинули всё, что стоит ниже.' +
+			'</blockquote>' +
+			'<ul><li>пункт</li><li>ещё пункт</li></ul>' +
+			'<table><tbody><tr><td>ячейка</td><td>вторая</td></tr>' +
+			'</tbody></table>' +
+			'<p><img alt="" src="' + pixel + '"></p>' +
+			'<img alt="" src="' + pixel + '">' +
+			'<img alt="" src="' + pixel + '">',
+			false
+		);
+
+		body = sceditor.getBody();
+
+		assert.strictEqual(body.querySelectorAll(':scope > img').length, 0);
+		assert.ok(body.querySelectorAll('p img').length >= 3);
+		assertHandlesSitOnBlocks();
+
+		quoteTop = body.querySelector('blockquote').offsetTop;
+		sceditor.width(140);
+		assert.ok(body.querySelector('blockquote').offsetTop > quoteTop);
+		assertHandlesSitOnBlocks();
+
+		sceditor.sourceMode(true);
+		sceditor.sourceMode(false);
+		body = sceditor.getBody();
+		assertHandlesSitOnBlocks();
+
+		assert.strictEqual(sceditor.val().indexOf('sceditor-drag'), -1);
+		assert.strictEqual(sceditor.val().indexOf('sceditor-rail'), -1);
+	}
+);
+
+

@@ -1,6 +1,6 @@
 {
   "name": "sceditor",
-  "version": "3.2.3-fork.1",
+  "version": "3.2.3-fork.2",
   "description": "Fork of SCEditor 3.2.3 for internal projects. Upstream: https://github.com/samclarke/SCEditor",
   "homepage": "https://github.com/Cet500/SCEditor",
   "bugs": "https://github.com/Cet500/SCEditor/issues",

@@ -110,9 +110,21 @@ body > ul,
 body > ol,
 body > table,
 body > pre,
-body > hr {
+body > hr,
+body > img {
 	position: relative;
 	margin: 0 0 1.15em;
+}
+
+body > img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+body img {
+	max-width: 100%;
+	height: auto;
 }
 
 body > p::before,
@@ -128,7 +140,8 @@ body > ul::before,
 body > ol::before,
 body > table::before,
 body > pre::before,
-body > hr::before {
+body > hr::before,
+body > img::before {
 	position: absolute;
 	left: -60px;
 	top: 0.2em;
@@ -167,6 +180,7 @@ body > ol::before { content: "list"; }
 body > table::before { content: "table"; }
 body > pre::before { content: "code"; }
 body > hr::before { content: "hr"; }
+body > img::before { content: "img"; }
 
 body > p::after,
 body > div::after,
@@ -181,7 +195,8 @@ body > ul::after,
 body > ol::after,
 body > table::after,
 body > pre::after,
-body > hr::after {
+body > hr::after,
+body > img::after {
 	content: "";
 	position: absolute;
 	left: -76px;
@@ -217,7 +232,9 @@ body > div.sceditor-rail {
 body > div.sceditor-rail::before,
 body > div.sceditor-rail::after,
 body > div.sceditor-drop::before,
-body > div.sceditor-drop::after {
+body > div.sceditor-drop::after,
+body > div.sceditor-ghost::before,
+body > div.sceditor-ghost::after {
 	content: none;
 }
 

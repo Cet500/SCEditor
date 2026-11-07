@@ -61,6 +61,9 @@ div.sceditor-dropdown div {
 		width: auto !important;
 		// Needed for IE
 		width: ~"calc(100% - 10px) !important";
+		// Admin themes cap every iframe and textarea.
+		max-width: none !important;
+		max-height: none !important;
 		// Allow iframes to shrink
 		min-height: 1px;
 	}
@@ -201,8 +204,10 @@ div.sceditor-dropdown div {
 		left: 0;
 		height: 100% !important;
 		width: 100% !important;
+		max-width: none !important;
 		.rounded(0);
-		z-index: 2000;
+		// Above Django admin headers and sticky bars.
+		z-index: 10000;
 	}
 
 	// Used to hide scrollbars when maximized

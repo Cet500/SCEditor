@@ -1,3 +1,8 @@
+Version 3.2.3-fork.2:
+	Drag handles stay on their blocks when the editor is resized,
+	maximised, or switched back from source. A run of images is one
+	block per image. Images fit the column width.
+
 Version 3.2.3-fork.1:
 	Fork of SCEditor 3.2.3 for internal projects.
 	Upstream: https://github.com/samclarke/SCEditor
