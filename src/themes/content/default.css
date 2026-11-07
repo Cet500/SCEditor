@@ -26,9 +26,10 @@ body {
 		long lines don't cause horizontal scrolling */
 	min-height: 100%;
 	word-wrap: break-word;
-	/* Room for the block-type rail. Preview does not load this sheet. */
+	/* Room for the block rail on the left and the table controls
+	   on the right and bottom. Preview does not load this sheet. */
 	position: relative;
-	padding: 10px 14px 18px 76px;
+	padding: 10px 40px 36px 76px;
 }
 
 body::after {
@@ -54,13 +55,24 @@ ul, ol {
 	padding-bottom: 0;
 }
 
-table, td {
-	border: 1px dotted #000;
+table {
+	border-collapse: collapse;
+	width: 100%;
 	empty-cells: show;
 }
 
-table td {
-	min-width: 5px;
+table td,
+table th {
+	border: 1px solid #e0d9ce;
+	padding: 0.45em 0.65em;
+	min-width: 3em;
+	vertical-align: top;
+}
+
+table th {
+	background: #f7f4ef;
+	font-weight: normal;
+	text-align: left;
 }
 
 code {
@@ -217,7 +229,8 @@ body > p.sceditor-nlf::after {
 
 body > div.sceditor-rail,
 body > div.sceditor-drop,
-body > div.sceditor-ghost {
+body > div.sceditor-ghost,
+body > div.sceditor-table-ui {
 	position: absolute;
 	margin: 0;
 	min-height: 0;
@@ -234,8 +247,108 @@ body > div.sceditor-rail::after,
 body > div.sceditor-drop::before,
 body > div.sceditor-drop::after,
 body > div.sceditor-ghost::before,
-body > div.sceditor-ghost::after {
+body > div.sceditor-ghost::after,
+body > div.sceditor-table-ui::before,
+body > div.sceditor-table-ui::after {
 	content: none;
+}
+
+.sceditor-table-ui {
+	left: 0;
+	top: 0;
+	z-index: 6;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+}
+
+.sceditor-table-ui button {
+	position: absolute;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	pointer-events: auto;
+	cursor: pointer;
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	line-height: 1;
+	user-select: none;
+}
+
+.sceditor-table-add,
+.sceditor-table-x {
+	width: 16px;
+	height: 16px;
+	border: 1px solid #c8bfb2;
+	border-radius: 8px;
+	background: #fff;
+	color: #5c564e;
+	font-size: 13px;
+	box-shadow: 0 1px 3px rgba(42, 33, 24, 0.16);
+}
+
+body.is-table-dragging .sceditor-table-insert,
+body.is-table-dragging .sceditor-table-row-x,
+body.is-table-dragging .sceditor-table-col-x {
+	visibility: hidden;
+}
+
+.sceditor-table-x {
+	color: #8d3b32;
+	font-size: 13px;
+}
+
+.sceditor-table-dot {
+	width: 14px;
+	height: 14px;
+	border: 0;
+	border-radius: 7px;
+	background: #9a9084;
+	color: transparent;
+	font-size: 0;
+	cursor: grab;
+	touch-action: none;
+}
+
+.sceditor-table-add:hover,
+.sceditor-table-dot:hover,
+body.is-table-dragging .sceditor-table-dot {
+	background: #1a73e8;
+	color: #fff;
+	border-color: #1a73e8;
+}
+
+.sceditor-table-dot:hover,
+body.is-table-dragging .sceditor-table-dot {
+	cursor: grabbing;
+}
+
+.sceditor-table-x:hover {
+	background: #d64545;
+	color: #fff;
+	border-color: #d64545;
+	cursor: pointer;
+}
+
+.sceditor-table-shift {
+	position: absolute;
+	box-sizing: content-box;
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: rgba(26, 115, 232, 0.45);
+	border-radius: 1px;
+	box-shadow: none;
+	pointer-events: none;
+	z-index: 7;
+}
+
+tr.is-table-source td,
+tr.is-table-source th,
+td.is-table-source,
+th.is-table-source {
+	opacity: 0.35;
 }
 
 .sceditor-rail {

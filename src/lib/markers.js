@@ -360,17 +360,18 @@ function stripEditorChrome(root, includeRail) {
 	}
 
 	chrome = root.querySelectorAll(includeRail ?
-		'.sceditor-rail, .sceditor-drop, .sceditor-ghost' :
+		'.sceditor-rail, .sceditor-drop, .sceditor-ghost, .sceditor-table-ui' :
 		'.sceditor-drop, .sceditor-ghost');
 
 	for (i = chrome.length - 1; i >= 0; i--) {
 		chrome[i].parentNode.removeChild(chrome[i]);
 	}
 
-	nodes = root.querySelectorAll('.is-drag-source');
+	nodes = root.querySelectorAll('.is-drag-source, .is-table-source');
 
 	for (i = 0; i < nodes.length; i++) {
 		nodes[i].classList.remove('is-drag-source');
+		nodes[i].classList.remove('is-table-source');
 	}
 
 	nodes = root.querySelectorAll('[class*="sceditor-block-"]');
@@ -501,7 +502,8 @@ export function isDraggableBlock(el) {
 		return false;
 	}
 
-	if (el.classList && el.classList.contains('sceditor-ghost')) {
+	if (el.classList && (el.classList.contains('sceditor-ghost') ||
+			el.classList.contains('sceditor-table-ui'))) {
 		return false;
 	}
 

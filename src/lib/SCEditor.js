@@ -1,7 +1,7 @@
 import * as dom from './dom.js';
 import * as utils from './utils.js';
 import defaultOptions from './defaultOptions.js';
-import defaultCommands from './defaultCommands.js';
+import defaultCommands, { editTable, notifyTableEdit } from './defaultCommands.js';
 import PluginManager from './PluginManager.js';
 import RangeHelper from './RangeHelper.js';
 import _tmpl from './templates.js';
@@ -705,6 +705,649 @@ export default function SCEditor(original, userOptions) {
 	};
 
 	/**
+	 * Hover controls for the table under the pointer.
+	 * The node is editor chrome and is removed before save.
+	 * @private
+	 */
+	var tableUi = null;
+	var tableDrag = null;
+	var tableHover = {
+		table: null,
+		cell: null,
+		insert: null
+	};
+
+	function tableControl(className, action, text) {
+		var button = wysiwygDocument.createElement('button');
+
+		button.type = 'button';
+		button.className = className;
+
+		if (action) {
+			button.setAttribute('data-action', action);
+		}
+
+		button.textContent = text || '';
+
+		return button;
+	}
+
+	function ensureTableUi() {
+		var shift;
+		var rowDot;
+		var colDot;
+
+		if (!tableUi) {
+			tableUi = wysiwygDocument.createElement('div');
+			tableUi.className = 'sceditor-table-ui';
+			tableUi.setAttribute('contenteditable', 'false');
+			dom.appendChild(tableUi, tableControl(
+				'sceditor-table-add sceditor-table-add-row',
+				'add-row',
+				'+'
+			));
+			dom.appendChild(tableUi, tableControl(
+				'sceditor-table-add sceditor-table-add-col',
+				'add-col',
+				'+'
+			));
+			dom.appendChild(tableUi, tableControl(
+				'sceditor-table-add sceditor-table-insert',
+				'add-row',
+				'+'
+			));
+			dom.appendChild(tableUi, tableControl(
+				'sceditor-table-x sceditor-table-row-x',
+				'del-row',
+				'\u00d7'
+			));
+			dom.appendChild(tableUi, tableControl(
+				'sceditor-table-x sceditor-table-col-x',
+				'del-col',
+				'\u00d7'
+			));
+			rowDot = tableControl(
+				'sceditor-table-dot sceditor-table-dot-row',
+				'',
+				''
+			);
+			rowDot.setAttribute('data-drag', 'row');
+			colDot = tableControl(
+				'sceditor-table-dot sceditor-table-dot-col',
+				'',
+				''
+			);
+			colDot.setAttribute('data-drag', 'col');
+			dom.appendChild(tableUi, rowDot);
+			dom.appendChild(tableUi, colDot);
+			shift = wysiwygDocument.createElement('div');
+			shift.className = 'sceditor-table-shift';
+			shift.hidden = true;
+			dom.appendChild(tableUi, shift);
+		}
+
+		if (tableUi.parentNode !== wysiwygBody) {
+			dom.appendChild(wysiwygBody, tableUi);
+		}
+
+		return tableUi;
+	}
+
+	function hideTableUi() {
+		tableHover.table = null;
+		tableHover.cell = null;
+		tableHover.insert = null;
+
+		if (tableUi && tableUi.parentNode) {
+			tableUi.parentNode.removeChild(tableUi);
+		}
+	}
+
+	function tableBox(el) {
+		var rect = el.getBoundingClientRect();
+		var root = wysiwygBody.getBoundingClientRect();
+
+		return {
+			top: rect.top - root.top,
+			left: rect.left - root.left,
+			width: rect.width,
+			height: rect.height
+		};
+	}
+
+	function nearestInnerGap(table, x, y) {
+		var rows = table.rows;
+		var cols = rows[0].cells;
+		var rect = table.getBoundingClientRect();
+		var best = null;
+		var bestDist = 8;
+		var i;
+		var edge;
+		var dist;
+
+		if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+			return null;
+		}
+
+		for (i = 1; i < rows.length; i++) {
+			edge = rows[i].getBoundingClientRect().top;
+			dist = Math.abs(y - edge);
+
+			if (dist <= bestDist) {
+				bestDist = dist;
+				best = { kind: 'row', gap: i, edge: edge };
+			}
+		}
+
+		for (i = 1; i < cols.length; i++) {
+			edge = cols[i].getBoundingClientRect().left;
+			dist = Math.abs(x - edge);
+
+			if (dist <= bestDist) {
+				bestDist = dist;
+				best = { kind: 'col', gap: i, edge: edge };
+			}
+		}
+
+		return best;
+	}
+
+	function placeTableControl(button, x, y) {
+		button.style.left = Math.round(x) + 'px';
+		button.style.top = Math.round(y) + 'px';
+	}
+
+	function placeTableUi() {
+		var table = tableHover.table;
+		var cell = tableHover.cell;
+		var ui;
+		var tableRect;
+		var rowRect;
+		var cellRect;
+		var rowDot;
+		var colDot;
+		var insert;
+		var edge;
+
+		if (!table || !table.parentNode || !cell || !cell.parentNode ||
+				!table.rows.length || !table.rows[0].cells.length) {
+			hideTableUi();
+			return;
+		}
+
+		ui = ensureTableUi();
+		tableRect = tableBox(table);
+		rowRect = tableBox(cell.parentNode.cells[0] || cell);
+		cellRect = tableBox(cell);
+		placeTableControl(
+			ui.querySelector('.sceditor-table-add-row'),
+			tableRect.left + (tableRect.width / 2) - 8,
+			tableRect.top + tableRect.height - 8
+		);
+		placeTableControl(
+			ui.querySelector('.sceditor-table-add-col'),
+			tableRect.left + tableRect.width - 8,
+			tableRect.top + (tableRect.height / 2) - 8
+		);
+		insert = ui.querySelector('.sceditor-table-insert');
+
+		if (!tableHover.insert) {
+			insert.hidden = true;
+		} else if (tableHover.insert.kind === 'row') {
+			insert.hidden = false;
+			insert.setAttribute('data-action', 'add-row');
+			insert.setAttribute('data-gap', String(tableHover.insert.gap));
+			insert.title = base._('Add row');
+			edge = localPoint(0, tableHover.insert.edge);
+			placeTableControl(
+				insert,
+				tableRect.left + (tableRect.width / 2) - 8,
+				edge.y - 8
+			);
+		} else {
+			insert.hidden = false;
+			insert.setAttribute('data-action', 'add-col');
+			insert.setAttribute('data-gap', String(tableHover.insert.gap));
+			insert.title = base._('Add column');
+			edge = localPoint(tableHover.insert.edge, 0);
+			placeTableControl(
+				insert,
+				edge.x - 8,
+				tableRect.top + (tableRect.height / 2) - 8
+			);
+		}
+
+		placeTableControl(
+			ui.querySelector('.sceditor-table-row-x'),
+			tableRect.left + tableRect.width + 16,
+			rowRect.top + (rowRect.height / 2) - 8
+		);
+		placeTableControl(
+			ui.querySelector('.sceditor-table-col-x'),
+			cellRect.left + (cellRect.width / 2) - 8,
+			tableRect.top + tableRect.height + 16
+		);
+		rowDot = ui.querySelector('.sceditor-table-dot-row');
+		colDot = ui.querySelector('.sceditor-table-dot-col');
+		placeTableControl(
+			rowDot,
+			tableRect.left - 20,
+			rowRect.top + (rowRect.height / 2) - 7
+		);
+		placeTableControl(
+			colDot,
+			cellRect.left + (cellRect.width / 2) - 7,
+			tableRect.top - 20
+		);
+		rowDot.title = base._('Drag row');
+		colDot.title = base._('Drag column');
+		ui.querySelector('.sceditor-table-add-row').title = base._('Add row');
+		ui.querySelector('.sceditor-table-add-col').title = base._('Add column');
+		ui.querySelector('.sceditor-table-row-x').title = base._('Delete row');
+		ui.querySelector('.sceditor-table-col-x').title = base._('Delete column');
+	}
+
+	function nearTable(e, table) {
+		var rect = table.getBoundingClientRect();
+		var pad = 52;
+
+		return e.clientX >= rect.left - pad &&
+			e.clientX <= rect.right + pad &&
+			e.clientY >= rect.top - pad &&
+			e.clientY <= rect.bottom + pad;
+	}
+
+	function moveTableUi(e) {
+		var cell;
+		var table;
+
+		if (dragState || tableDrag || base.inSourceMode()) {
+			return;
+		}
+
+		if (dom.closest(e.target, '.sceditor-table-insert') &&
+				tableHover.insert && tableHover.table) {
+			showTableShift(
+				tableHover.table,
+				tableHover.insert.kind,
+				tableHover.insert.gap
+			);
+			return;
+		}
+
+		if (tableHover.table && dom.closest(e.target, '.sceditor-table-add-row')) {
+			showTableShift(
+				tableHover.table,
+				'row',
+				tableHover.table.rows.length
+			);
+			return;
+		}
+
+		if (tableHover.table && tableHover.table.rows[0] &&
+				dom.closest(e.target, '.sceditor-table-add-col')) {
+			showTableShift(
+				tableHover.table,
+				'col',
+				tableHover.table.rows[0].cells.length
+			);
+			return;
+		}
+
+		if (dom.closest(e.target, '.sceditor-table-ui')) {
+			hideTableShift();
+			return;
+		}
+
+		cell = dom.closest(e.target, 'td,th');
+		table = cell && dom.closest(cell, 'table');
+
+		if (table && wysiwygBody.contains(table)) {
+			hideTableShift();
+			tableHover.table = table;
+			tableHover.cell = cell;
+			tableHover.insert = nearestInnerGap(table, e.clientX, e.clientY);
+			placeTableUi();
+			return;
+		}
+
+		if (tableHover.table && nearTable(e, tableHover.table)) {
+			return;
+		}
+
+		hideTableUi();
+	}
+
+	function rowGap(table, y) {
+		var rows = table.rows;
+		var i;
+		var rect;
+
+		for (i = 0; i < rows.length; i++) {
+			rect = rows[i].getBoundingClientRect();
+
+			if (y < rect.top + rect.height / 2) {
+				return i;
+			}
+		}
+
+		return rows.length;
+	}
+
+	function colGap(table, x) {
+		var cells = table.rows[0] ? table.rows[0].cells : [];
+		var i;
+		var rect;
+
+		for (i = 0; i < cells.length; i++) {
+			rect = cells[i].getBoundingClientRect();
+
+			if (x < rect.left + rect.width / 2) {
+				return i;
+			}
+		}
+
+		return cells.length;
+	}
+
+	function localPoint(x, y) {
+		var root = wysiwygBody.getBoundingClientRect();
+
+		return {
+			x: x - root.left,
+			y: y - root.top
+		};
+	}
+
+	function markTableSource(table, kind, index) {
+		var i;
+		var row;
+
+		for (i = 0; i < table.rows.length; i++) {
+			row = table.rows[i];
+
+			if (kind === 'row') {
+				row.classList.toggle('is-table-source', i === index);
+			} else if (row.cells[index]) {
+				row.cells[index].classList.add('is-table-source');
+			}
+		}
+	}
+
+	function clearTableSource(table) {
+		var nodes;
+		var i;
+
+		if (!table) {
+			return;
+		}
+
+		nodes = table.querySelectorAll('.is-table-source');
+
+		for (i = 0; i < nodes.length; i++) {
+			nodes[i].classList.remove('is-table-source');
+		}
+	}
+
+	function showTableShift(table, kind, gap) {
+		var ui = ensureTableUi();
+		var line = ui.querySelector('.sceditor-table-shift');
+		var tableRect = table.getBoundingClientRect();
+		var edge;
+		var point;
+		var rows = table.rows;
+
+		line.hidden = false;
+
+		if (kind === 'row') {
+			edge = gap >= rows.length ?
+				rows[rows.length - 1].getBoundingClientRect().bottom :
+				rows[gap].getBoundingClientRect().top;
+			point = localPoint(tableRect.left, edge);
+			line.style.left = Math.round(point.x) + 'px';
+			line.style.top = Math.round(point.y - 1) + 'px';
+			line.style.width = Math.round(tableRect.width) + 'px';
+			line.style.height = '2px';
+		} else {
+			edge = gap >= rows[0].cells.length ?
+				rows[0].cells[rows[0].cells.length - 1]
+					.getBoundingClientRect().right :
+				rows[0].cells[gap].getBoundingClientRect().left;
+			point = localPoint(edge, tableRect.top);
+			line.style.left = Math.round(point.x - 1) + 'px';
+			line.style.top = Math.round(point.y) + 'px';
+			line.style.width = '2px';
+			line.style.height = Math.round(tableRect.height) + 'px';
+		}
+	}
+
+	function hideTableShift() {
+		var line = tableUi && tableUi.querySelector('.sceditor-table-shift');
+
+		if (line) {
+			line.hidden = true;
+		}
+	}
+
+	function moveTableRow(table, from, gap) {
+		var row;
+
+		if (gap === from || gap === from + 1 || from < 0 ||
+				from >= table.rows.length) {
+			return false;
+		}
+
+		row = table.rows[from];
+		row.parentNode.insertBefore(row, table.rows[gap] || null);
+
+		return true;
+	}
+
+	function moveTableColumn(table, from, gap) {
+		var i;
+		var row;
+		var cell;
+		var ref;
+
+		if (!table.rows[0] || gap === from || gap === from + 1 || from < 0) {
+			return false;
+		}
+
+		for (i = 0; i < table.rows.length; i++) {
+			row = table.rows[i];
+
+			if (from >= row.cells.length) {
+				continue;
+			}
+
+			cell = row.cells[from];
+			ref = gap >= row.cells.length ? null : row.cells[gap];
+			row.insertBefore(cell, ref);
+		}
+
+		return true;
+	}
+
+	function stopTableDrag() {
+		dom.removeClass(wysiwygBody, 'is-table-dragging');
+		dom.off(wysiwygDocument, 'pointermove', moveTableDrag);
+		dom.off(wysiwygDocument, 'pointerup', finishTableDrag);
+		dom.off(wysiwygDocument, 'pointercancel', finishTableDrag);
+		hideTableShift();
+	}
+
+	function moveTableDrag(e) {
+		var dx;
+		var dy;
+		var gap;
+
+		if (!tableDrag || e.pointerId !== tableDrag.pointer) {
+			return;
+		}
+
+		dx = e.clientX - tableDrag.startX;
+		dy = e.clientY - tableDrag.startY;
+
+		if (!tableDrag.moved && (dx * dx) + (dy * dy) < 16) {
+			return;
+		}
+
+		tableDrag.moved = true;
+		e.preventDefault();
+		gap = tableDrag.kind === 'row' ?
+			rowGap(tableDrag.table, e.clientY) :
+			colGap(tableDrag.table, e.clientX);
+		tableDrag.gap = gap;
+		markTableSource(tableDrag.table, tableDrag.kind, tableDrag.from);
+		showTableShift(tableDrag.table, tableDrag.kind, gap);
+	}
+
+	function finishTableDrag(e) {
+		var drag = tableDrag;
+		var changed = false;
+
+		if (!drag || (e && e.pointerId !== drag.pointer)) {
+			return;
+		}
+
+		tableDrag = null;
+		stopTableDrag();
+		clearTableSource(drag.table);
+
+		if (drag.moved && drag.table.parentNode) {
+			changed = drag.kind === 'row' ?
+				moveTableRow(drag.table, drag.from, drag.gap) :
+				moveTableColumn(drag.table, drag.from, drag.gap);
+
+			if (changed) {
+				notifyTableEdit(base);
+			}
+		}
+
+		if (!drag.table.parentNode || !drag.table.rows.length) {
+			hideTableUi();
+			return;
+		}
+
+		tableHover.table = drag.table;
+		tableHover.cell = drag.table.rows[0].cells[0];
+		placeTableUi();
+	}
+
+	function pointerDownTableUi(e) {
+		var dot;
+		var cell;
+		var from;
+
+		dot = dom.closest(e.target, '.sceditor-table-dot');
+
+		if (!dot || !tableHover.table || !tableHover.cell || e.button !== 0) {
+			return;
+		}
+
+		cell = tableHover.cell;
+		from = dot.getAttribute('data-drag') === 'row' ?
+			Array.prototype.indexOf.call(tableHover.table.rows, cell.parentNode) :
+			Array.prototype.indexOf.call(cell.parentNode.cells, cell);
+
+		if (from < 0) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopPropagation();
+		dom.addClass(wysiwygBody, 'is-table-dragging');
+		tableDrag = {
+			kind: dot.getAttribute('data-drag'),
+			table: tableHover.table,
+			from: from,
+			pointer: e.pointerId,
+			startX: e.clientX,
+			startY: e.clientY,
+			gap: from,
+			moved: false
+		};
+
+		if (dot.setPointerCapture) {
+			try {
+				dot.setPointerCapture(e.pointerId);
+			// eslint-disable-next-line no-unused-vars
+			} catch (ex) {}
+		}
+
+		dom.on(wysiwygDocument, 'pointermove', moveTableDrag);
+		dom.on(wysiwygDocument, 'pointerup', finishTableDrag);
+		dom.on(wysiwygDocument, 'pointercancel', finishTableDrag);
+	}
+
+	function clickTableUi(e) {
+		var button = dom.closest(e.target, 'button');
+		var action;
+		var table;
+		var cell;
+		var rows;
+		var gap;
+		var hovered;
+
+		if (!button || !dom.closest(button, '.sceditor-table-ui') ||
+				!tableHover.table) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopPropagation();
+		action = button.getAttribute('data-action');
+		table = tableHover.table;
+		cell = tableHover.cell;
+		rows = table.rows;
+		gap = Number(button.getAttribute('data-gap'));
+
+		if (action === 'add-row') {
+			if (button.hasAttribute('data-gap') && gap < rows.length) {
+				cell = rows[gap].cells[0];
+				action = 'row-before';
+			} else {
+				cell = rows[rows.length - 1].cells[0];
+				action = 'row-after';
+			}
+		} else if (action === 'add-col') {
+			if (button.hasAttribute('data-gap') && gap < rows[0].cells.length) {
+				cell = rows[0].cells[gap];
+				action = 'col-before';
+			} else {
+				cell = rows[0].cells[rows[0].cells.length - 1];
+				action = 'col-after';
+			}
+		} else if (action === 'del-row') {
+			action = 'row-delete';
+		} else if (action === 'del-col') {
+			action = 'col-delete';
+		}
+
+		if (!action || !cell) {
+			return;
+		}
+
+		hovered = tableHover.cell;
+		tableHover.insert = null;
+		editTable(base, cell, action);
+
+		if (!table.parentNode || !table.rows.length) {
+			hideTableUi();
+			return;
+		}
+
+		if (hovered && hovered.parentNode) {
+			tableHover.cell = hovered;
+		} else {
+			tableHover.cell = table.rows[0].cells[0];
+		}
+
+		tableHover.table = table;
+		placeTableUi();
+	}
+
+	/**
 	 * Initialises events
 	 * @private
 	 */
@@ -731,6 +1374,14 @@ export default function SCEditor(original, userOptions) {
 		dom.on(wysiwygBody, 'keydown', handleKeyDown);
 		dom.on(wysiwygBody, 'keydown', handleBackSpace);
 		dom.on(wysiwygBody, 'pointerdown', startBlockDrag);
+		dom.on(wysiwygBody, 'pointermove', moveTableUi);
+		dom.on(wysiwygBody, 'pointerdown', pointerDownTableUi);
+		dom.on(wysiwygBody, 'click', clickTableUi);
+		dom.on(wysiwygWindow, 'scroll', function () {
+			if (tableHover.table) {
+				placeTableUi();
+			}
+		});
 		dom.on(wysiwygBody, 'load', function (e) {
 			if (dom.closest(e.target, '.sceditor-ghost')) {
 				return;
@@ -1052,7 +1703,7 @@ export default function SCEditor(original, userOptions) {
 	 */
 	var skipChrome = function (node, fromEnd) {
 		while (node && dom.is(node, '.sceditor-rail,.sceditor-drop,' +
-			'.sceditor-ghost,.sceditor-ignore')) {
+			'.sceditor-ghost,.sceditor-table-ui,.sceditor-ignore')) {
 			node = fromEnd ? node.previousSibling : node.nextSibling;
 		}
 
@@ -2614,6 +3265,7 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		if (from === 'wysiwyg') {
+			hideTableUi();
 			rangeHelper.saveRange();
 			rangeHelper.clear();
 		}
@@ -3123,7 +3775,8 @@ export default function SCEditor(original, userOptions) {
 		dom.rTraverse(wysiwygBody, function (node) {
 			// Last block, add new line after if has styling
 			if (dom.is(node, '.sceditor-rail,.sceditor-drop,' +
-				'.sceditor-drag,.sceditor-ghost,.sceditor-ignore')) {
+				'.sceditor-drag,.sceditor-ghost,.sceditor-table-ui,' +
+				'.sceditor-ignore')) {
 				return;
 			}
 
@@ -3476,6 +4129,7 @@ export default function SCEditor(original, userOptions) {
 			return;
 		}
 
+		hideTableUi();
 		e.preventDefault();
 		e.stopPropagation();
 		dragState = {

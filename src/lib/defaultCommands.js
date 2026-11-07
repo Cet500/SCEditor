@@ -4,6 +4,194 @@ import * as escape from './escape.js';
 import _tmpl from './templates.js';
 
 /**
+ * Cell under the caret, or the first cell when the whole table is selected.
+ *
+ * @param {Object} editor
+ * @return {HTMLTableCellElement|null}
+ */
+function tableCell(editor) {
+	var node = editor.getRangeHelper().parentNode();
+	var cell = dom.closest(node, 'td,th');
+	var table;
+
+	if (cell) {
+		return cell;
+	}
+
+	table = dom.closest(node, 'table');
+
+	if (table && table.rows[0] && table.rows[0].cells[0]) {
+		return table.rows[0].cells[0];
+	}
+
+	return null;
+}
+
+/**
+ * @param {HTMLTableCellElement} cell
+ * @return {number}
+ */
+function cellIndex(cell) {
+	return Array.prototype.indexOf.call(cell.parentNode.cells, cell);
+}
+
+/**
+ * @param {Document} doc
+ * @param {string} tag
+ * @return {HTMLTableCellElement}
+ */
+function blankCell(doc, tag) {
+	var cell = doc.createElement(tag || 'td');
+
+	cell.appendChild(doc.createElement('br'));
+
+	return cell;
+}
+
+/**
+ * @param {Node} node
+ */
+function placeCaret(node) {
+	var doc = node.ownerDocument;
+	var selection = doc.defaultView.getSelection();
+	var range = doc.createRange();
+
+	range.selectNodeContents(node);
+	range.collapse(true);
+	selection.removeAllRanges();
+	selection.addRange(range);
+}
+
+/**
+ * @param {HTMLTableElement} table
+ */
+function removeTable(table) {
+	var doc = table.ownerDocument;
+	var paragraph = doc.createElement('p');
+
+	paragraph.appendChild(doc.createElement('br'));
+	table.parentNode.insertBefore(paragraph, table);
+	table.parentNode.removeChild(table);
+	placeCaret(paragraph);
+}
+
+/**
+ * @param {Object} editor
+ */
+export function notifyTableEdit(editor) {
+	var body = editor.getBody();
+	var view = body.ownerDocument.defaultView;
+	var event;
+
+	try {
+		event = new view.InputEvent('input', {
+			bubbles: true,
+			inputType: 'insertParagraph'
+		});
+	} catch (ex) {
+		event = body.ownerDocument.createEvent('Event');
+		event.initEvent('input', true, false);
+	}
+
+	body.dispatchEvent(event);
+}
+
+/**
+ * @param {Object} editor
+ * @param {HTMLTableCellElement} cell
+ * @param {string} action
+ */
+export function editTable(editor, cell, action) {
+	var table = dom.closest(cell, 'table');
+	var row = cell.parentNode;
+	var index = cellIndex(cell);
+	var doc;
+	var fresh;
+	var next;
+	var i;
+	var current;
+	var ref;
+
+	if (!table || !row) {
+		return;
+	}
+
+	doc = table.ownerDocument;
+
+	if (action === 'row-before' || action === 'row-after') {
+		fresh = doc.createElement('tr');
+
+		for (i = 0; i < row.cells.length; i++) {
+			fresh.appendChild(blankCell(doc, 'td'));
+		}
+
+		row.parentNode.insertBefore(
+			fresh,
+			action === 'row-before' ? row : row.nextSibling
+		);
+		next = fresh.cells[Math.min(index, fresh.cells.length - 1)];
+	} else if (action === 'row-delete') {
+		next = row.nextElementSibling || row.previousElementSibling;
+		row.parentNode.removeChild(row);
+
+		if (!table.rows.length) {
+			removeTable(table);
+			editor.focus();
+			notifyTableEdit(editor);
+			return;
+		}
+
+		next = next.cells[Math.min(index, next.cells.length - 1)];
+	} else if (action === 'col-before' || action === 'col-after') {
+		for (i = 0; i < table.rows.length; i++) {
+			current = table.rows[i];
+			ref = current.cells[index];
+			fresh = blankCell(doc, ref && ref.nodeName === 'TH' ? 'th' : 'td');
+
+			if (!ref) {
+				current.appendChild(fresh);
+			} else if (action === 'col-before') {
+				current.insertBefore(fresh, ref);
+			} else {
+				current.insertBefore(fresh, ref.nextSibling);
+			}
+		}
+
+		next = row.cells[action === 'col-before' ? index : index + 1];
+	} else if (action === 'col-delete') {
+		if (row.cells.length <= 1) {
+			removeTable(table);
+			editor.focus();
+			notifyTableEdit(editor);
+			return;
+		}
+
+		for (i = 0; i < table.rows.length; i++) {
+			current = table.rows[i];
+
+			if (current.cells[index]) {
+				current.deleteCell(index);
+			}
+		}
+
+		next = row.cells[Math.min(index, row.cells.length - 1)];
+	} else if (action === 'table-delete') {
+		removeTable(table);
+		editor.focus();
+		notifyTableEdit(editor);
+		return;
+	}
+
+	editor.focus();
+
+	if (next) {
+		placeCaret(next);
+	}
+
+	notifyTableEdit(editor);
+}
+
+/**
  * Fixes a bug in FF where it sometimes wraps
  * new lines in their own list item.
  * See issue #359
@@ -473,36 +661,65 @@ var defaultCmds = {
 	// START_COMMAND: Table
 	table: {
 		exec: function (caller) {
-			var	editor  = this,
-				content = dom.createElement('div');
+			var editor = this;
+			var cell = tableCell(editor);
+			var content = dom.createElement('div');
 
-			dom.appendChild(content, _tmpl('table', {
-				rows: editor._('Rows:'),
-				cols: editor._('Cols:'),
-				insert: editor._('Insert')
-			}, true));
+			if (cell) {
+				content.className = 'sceditor-table-edit';
+				[
+					['row-after', 'Row below'],
+					['row-before', 'Row above'],
+					['row-delete', 'Delete row'],
+					['col-after', 'Column after'],
+					['col-before', 'Column before'],
+					['col-delete', 'Delete column'],
+					['table-delete', 'Delete table']
+				].forEach(function (item) {
+					var button = dom.createElement('button', {
+						className: 'button',
+						type: 'button'
+					});
 
-			dom.on(content, 'click', '.button', function (e) {
-				var	rows = Number(dom.find(content, '#rows')[0].value),
-					cols = Number(dom.find(content, '#cols')[0].value),
-					html = '<table>';
+					button.setAttribute('data-action', item[0]);
+					button.textContent = editor._(item[1]);
+					dom.appendChild(content, button);
+				});
 
-				if (rows > 0 && cols > 0) {
-					html += Array(rows + 1).join(
-						'<tr>' +
-							Array(cols + 1).join(
-								'<td><br /></td>'
-							) +
-						'</tr>'
-					);
-
-					html += '</table>';
-
-					editor.wysiwygEditorInsertHtml(html);
-					editor.closeDropDown(true);
+				dom.on(content, 'click', '.button', function (e) {
 					e.preventDefault();
-				}
-			});
+					editTable(editor, cell, this.getAttribute('data-action'));
+					editor.closeDropDown(true);
+				});
+			} else {
+				dom.appendChild(content, _tmpl('table', {
+					rows: editor._('Rows:'),
+					cols: editor._('Cols:'),
+					insert: editor._('Insert')
+				}, true));
+
+				dom.on(content, 'click', '.button', function (e) {
+					var rows = Number(dom.find(content, '#rows')[0].value);
+					var cols = Number(dom.find(content, '#cols')[0].value);
+					var html = '<table>';
+
+					if (rows > 0 && cols > 0) {
+						html += Array(rows + 1).join(
+							'<tr>' +
+								Array(cols + 1).join(
+									'<td><br /></td>'
+								) +
+							'</tr>'
+						);
+
+						html += '</table>';
+
+						editor.wysiwygEditorInsertHtml(html);
+						editor.closeDropDown(true);
+						e.preventDefault();
+					}
+				});
+			}
 
 			editor.createDropDown(caller, 'inserttable', content);
 		},

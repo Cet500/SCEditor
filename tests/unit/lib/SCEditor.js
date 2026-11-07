@@ -868,3 +868,237 @@ QUnit.test('drag handles follow layout, source mode and loose images',
 );
 
 
+QUnit.test('table structure changes from the visual menu', function (assert) {
+	var body;
+	var doc;
+	var cell;
+	var range;
+	var sel;
+	var menu;
+	var saved;
+
+	function caretIn(node) {
+		range = doc.createRange();
+		range.selectNodeContents(node);
+		range.collapse(true);
+		sel.removeAllRanges();
+		sel.addRange(range);
+	}
+
+	function openMenu() {
+		sceditor.commands.table.exec.call(
+			sceditor,
+			document.createElement('div')
+		);
+		menu = document.querySelector('.sceditor-inserttable');
+	}
+
+	function choose(action) {
+		openMenu();
+		menu.querySelector('[data-action="' + action + '"]').click();
+	}
+
+	reloadEditor({
+		format: 'xhtml'
+	});
+	sceditor.val(
+		'<table><tbody><tr><td>a</td><td>b</td></tr>' +
+		'<tr><td>c</td><td>d</td></tr></tbody></table>',
+		false
+	);
+	body = sceditor.getBody();
+	doc = body.ownerDocument;
+	sel = doc.defaultView.getSelection();
+	cell = body.querySelector('td');
+	caretIn(cell);
+
+	openMenu();
+	assert.strictEqual(menu.querySelectorAll('[data-action]').length, 7);
+	assert.strictEqual(menu.querySelector('#rows'), null);
+	sceditor.closeDropDown(true);
+
+	choose('row-after');
+	assert.strictEqual(body.querySelectorAll('tr').length, 3);
+	assert.strictEqual(body.querySelectorAll('tr')[1].textContent, '');
+
+	caretIn(body.querySelector('td'));
+	choose('col-after');
+	assert.strictEqual(body.querySelector('tr').children.length, 3);
+	assert.strictEqual(
+		body.querySelectorAll('tr')[2].children.length,
+		3
+	);
+
+	caretIn(body.querySelector('td'));
+	choose('table-delete');
+	assert.strictEqual(body.querySelector('table'), null);
+
+	saved = sceditor.val();
+	assert.strictEqual(saved.indexOf('<table'), -1);
+	assert.strictEqual(saved.indexOf('border-collapse'), -1);
+});
+
+
+QUnit.test('hovering a table shows controls that are not saved',
+	function (assert) {
+		var body;
+		var doc;
+		var cell;
+		var ui;
+		var rows;
+		var dot;
+		var from;
+		var to;
+		var done = assert.async();
+		var view;
+
+		function drag(handle, x0, y0, x1, y1) {
+			handle.dispatchEvent(new PointerEvent('pointerdown', {
+				bubbles: true,
+				cancelable: true,
+				pointerId: 7,
+				button: 0,
+				clientX: x0,
+				clientY: y0
+			}));
+			doc.dispatchEvent(new PointerEvent('pointermove', {
+				bubbles: true,
+				cancelable: true,
+				pointerId: 7,
+				button: 0,
+				clientX: x1,
+				clientY: y1
+			}));
+			doc.dispatchEvent(new PointerEvent('pointerup', {
+				bubbles: true,
+				cancelable: true,
+				pointerId: 7,
+				button: 0,
+				clientX: x1,
+				clientY: y1
+			}));
+		}
+
+		reloadEditor({
+			format: 'xhtml'
+		});
+		sceditor.val(
+			'<table><tbody><tr><td>a</td><td>b</td></tr>' +
+			'<tr><td>c</td><td>d</td></tr></tbody></table>',
+			false
+		);
+		body = sceditor.getBody();
+		doc = body.ownerDocument;
+		cell = body.querySelector('td');
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true
+		}));
+		ui = body.querySelector('.sceditor-table-ui');
+
+		assert.ok(ui);
+		assert.strictEqual(ui.querySelectorAll('.sceditor-table-add-row').length, 1);
+		assert.strictEqual(ui.querySelectorAll('.sceditor-table-add-col').length, 1);
+		assert.strictEqual(ui.querySelector('.sceditor-table-insert').hidden, true);
+		assert.ok(ui.querySelector('[data-action="del-row"]'));
+		assert.ok(ui.querySelector('[data-action="del-col"]'));
+		assert.strictEqual(ui.querySelector('[data-action="table-delete"]'), null);
+		ui.querySelector('.sceditor-table-add-row').dispatchEvent(
+			new PointerEvent('pointermove', { bubbles: true })
+		);
+		assert.strictEqual(
+			ui.querySelector('.sceditor-table-shift').hidden,
+			false
+		);
+
+		from = body.querySelector('table').getBoundingClientRect();
+		to = body.querySelectorAll('tr')[1].getBoundingClientRect();
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true,
+			clientX: from.left + (from.width / 2),
+			clientY: to.top
+		}));
+		assert.strictEqual(ui.querySelector('.sceditor-table-insert').hidden, false);
+		ui.querySelector('.sceditor-table-insert').dispatchEvent(
+			new PointerEvent('pointermove', { bubbles: true })
+		);
+		assert.strictEqual(
+			ui.querySelector('.sceditor-table-shift').hidden,
+			false
+		);
+		ui.querySelector('.sceditor-table-insert').click();
+		assert.strictEqual(body.querySelectorAll('tr').length, 3);
+		assert.strictEqual(
+			body.querySelectorAll('tr')[0].textContent,
+			'ab'
+		);
+		assert.strictEqual(
+			body.querySelectorAll('tr')[1].textContent,
+			''
+		);
+		cell = body.querySelector('td');
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true
+		}));
+		ui.querySelector('[data-action="del-row"]').click();
+		assert.strictEqual(body.querySelectorAll('tr').length, 2);
+		assert.strictEqual(body.querySelectorAll('tr')[1].textContent, 'cd');
+		assert.strictEqual(ui.querySelector('.sceditor-table-menu'), null);
+
+		sceditor.val(
+			'<table><tbody><tr><td>a</td><td>b</td></tr>' +
+			'<tr><td>c</td><td>d</td></tr></tbody></table>',
+			false
+		);
+		body = sceditor.getBody();
+		doc = body.ownerDocument;
+		cell = body.querySelector('td');
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true
+		}));
+		ui = body.querySelector('.sceditor-table-ui');
+		ui.querySelector('.sceditor-table-add-row').click();
+		assert.strictEqual(body.querySelectorAll('tr').length, 3);
+
+		cell = body.querySelector('td');
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true
+		}));
+		rows = body.querySelectorAll('tr');
+		from = rows[0].getBoundingClientRect();
+		to = rows[rows.length - 1].getBoundingClientRect();
+		dot = ui.querySelector('[data-drag="row"]');
+		drag(dot, from.left, from.top + 4, from.left, to.bottom + 12);
+		rows = body.querySelectorAll('tr');
+		assert.strictEqual(rows[0].textContent, 'cd');
+		assert.strictEqual(rows[rows.length - 1].textContent, 'ab');
+
+		ui = body.querySelector('.sceditor-table-ui');
+		cell = body.querySelector('td');
+		cell.dispatchEvent(new PointerEvent('pointermove', {
+			bubbles: true,
+			clientX: cell.getBoundingClientRect().left + 4,
+			clientY: cell.getBoundingClientRect().top + 4
+		}));
+		ui = body.querySelector('.sceditor-table-ui');
+		from = body.querySelector('td').getBoundingClientRect();
+		to = body.querySelectorAll('td')[1].getBoundingClientRect();
+		dot = ui.querySelector('[data-drag="col"]');
+		drag(dot, from.left + 4, from.top + 4, to.right + 12, from.top + 4);
+		assert.strictEqual(body.querySelector('tr').textContent, 'dc');
+
+		view = body.ownerDocument.defaultView;
+		view.requestAnimationFrame(function () {
+			view.requestAnimationFrame(function () {
+				assert.ok(body.querySelector('.sceditor-table-ui'));
+				assert.strictEqual(
+					sceditor.val().indexOf('sceditor-table-ui'),
+					-1
+				);
+				assert.strictEqual(sceditor.val().indexOf('data-action'), -1);
+				done();
+			});
+		});
+	}
+);
+
+
