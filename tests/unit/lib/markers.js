@@ -97,3 +97,48 @@ QUnit.test('protect() and expand() round-trip the marker string',
 		);
 	}
 );
+
+
+QUnit.test('protect() keeps a caret beside a lone marker', function (assert) {
+	var root = document.createElement('div');
+	var fixture = document.getElementById('qunit-fixture');
+	var chips;
+	var chip;
+	var text;
+	var range;
+
+	root.innerHTML = '<p>[fa brand Telegram]</p><p>ab [image 3] cd</p>';
+	fixture.appendChild(root);
+	markers.protect(root, markers.enabled('fa,image'));
+
+	chips = root.querySelectorAll('.sceditor-marker');
+	assert.strictEqual(
+		chips[0].getAttribute('data-sceditor-marker'),
+		'[fa brands telegram]'
+	);
+	assert.strictEqual(chips[0].previousSibling.nodeValue, '\u200B');
+	assert.strictEqual(chips[0].nextSibling.nodeValue, '\u200B');
+
+	chip = chips[1];
+	text = chip.previousSibling;
+	range = document.createRange();
+	range.setStart(text, text.nodeValue.length);
+	range.collapse(true);
+	assert.strictEqual(markers.adjacentMarker(range, -1), null);
+	assert.strictEqual(markers.adjacentMarker(range, 1), chip);
+
+	range.setStart(chips[0].nextSibling, 0);
+	range.collapse(true);
+	assert.strictEqual(markers.adjacentMarker(range, -1), chips[0]);
+
+	markers.removeChip(chips[0]);
+	assert.strictEqual(root.querySelectorAll('.sceditor-marker').length, 1);
+	assert.ok(root.querySelector('br'));
+
+	markers.expand(root);
+	assert.strictEqual(
+		root.querySelectorAll('p')[1].textContent,
+		'ab [image 3] cd'
+	);
+	assert.strictEqual(root.textContent.indexOf('\u200B'), -1);
+});

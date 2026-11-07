@@ -906,6 +906,12 @@ export function removeWhiteSpace(root) {
 			previous  = getSibling(node, true);
 			trimStart = false;
 
+			// Caret spaces sit beside marker chips. Leave those nodes
+			// intact; every other zero-width space is editor noise.
+			if (!isMarkerCaretText(node)) {
+				nodeValue = nodeValue.replace(/\u200B/g, '');
+			}
+
 			while (hasClass(previous, 'sceditor-ignore')) {
 				previous = getSibling(previous, true);
 			}
@@ -928,9 +934,6 @@ export function removeWhiteSpace(root) {
 					/[\t\n\r ]$/.test(previousSibling.nodeValue) :
 					!isInline(previousSibling);
 			}
-
-			// Clear zero width spaces
-			nodeValue = nodeValue.replace(/\u200B/g, '');
 
 			// Strip leading whitespace
 			if (!previous || !isInline(previous) || trimStart) {
@@ -1079,6 +1082,31 @@ function stylesMatch(nodeA, nodeB) {
 }
 
 /**
+ * @param {Node} node
+ * @return {boolean}
+ */
+function isMarkerChip(node) {
+	return !!(node && node.nodeType === ELEMENT_NODE &&
+		hasClass(node, 'sceditor-marker'));
+}
+
+/**
+ * A text node that exists only so the caret can stand next to a chip.
+ *
+ * @param {Node} node
+ * @return {boolean}
+ */
+function isMarkerCaretText(node) {
+	if (!node || node.nodeType !== TEXT_NODE ||
+			String(node.nodeValue || '').replace(/\u200B/g, '')) {
+		return false;
+	}
+
+	return isMarkerChip(node.previousSibling) ||
+		isMarkerChip(node.nextSibling);
+}
+
+/**
  * Returns true if both nodes have the same number of attributes and all the
  * attribute values match
  *
@@ -1127,6 +1155,12 @@ function removeKeepChildren(node) {
  */
 export function merge(node) {
 	if (node.nodeType !== ELEMENT_NODE) {
+		return;
+	}
+
+	// Marker chips carry the marker string in an attribute. Merging two
+	// of them would keep one attribute and concatenate the labels.
+	if (hasClass(node, 'sceditor-marker')) {
 		return;
 	}
 

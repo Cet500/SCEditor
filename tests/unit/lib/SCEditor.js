@@ -609,3 +609,42 @@ QUnit.test('Do not wrap whitespace text nodes', function (assert) {
 });
 
 
+QUnit.test('markers round-trip as marker strings', function (assert) {
+	var body;
+	var saved;
+
+	reloadEditor({
+		format: 'xhtml',
+		markers: 'image,gallery,fa,blog'
+	});
+
+	sceditor.val(
+		'<p>[image 2]</p>' +
+		'<p>иконка [fa plus] тут</p>' +
+		'<p>[gallery 1 3]</p>' +
+		'<pre>[image 1]</pre>',
+		false
+	);
+
+	body = sceditor.getBody();
+
+	assert.strictEqual(body.querySelectorAll('.sceditor-marker').length, 3);
+	assert.strictEqual(
+		body.querySelector('[data-sceditor-marker="[image 2]"]')
+			.getAttribute('contenteditable'),
+		'false'
+	);
+	assert.strictEqual(body.querySelector('pre').textContent, '[image 1]');
+
+	saved = sceditor.val();
+
+	assert.ok(saved.indexOf('[image 2]') !== -1);
+	assert.ok(saved.indexOf('[fa plus]') !== -1);
+	assert.ok(saved.indexOf('[gallery 1 3]') !== -1);
+	assert.ok(saved.indexOf('[image 1]') !== -1);
+	assert.strictEqual(saved.indexOf('sceditor-marker'), -1);
+	assert.strictEqual(saved.indexOf('data-sceditor-marker'), -1);
+	assert.strictEqual(saved.indexOf('\u200B'), -1);
+});
+
+

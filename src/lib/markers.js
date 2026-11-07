@@ -2,8 +2,9 @@
  * Project markers such as [image 1] and [fa plus].
  *
  * Enabled kinds stay one piece in the editor and are saved as the
- * marker string. The preview turns them into placeholders. Kinds that
- * are not enabled stay ordinary text.
+ * marker string. A zero-width space beside a chip gives the caret a
+ * place to stand; saving removes that space. The preview turns markers
+ * into placeholders. Kinds that are not enabled stay ordinary text.
  */
 
 var IMAGE_RE = /^\[\s*image\s+(\d+)\s*\]/i;
@@ -115,6 +116,8 @@ export function protect(root, kinds) {
 	for (i = 0; i < nodes.length; i++) {
 		protectNode(nodes[i], kinds, selection);
 	}
+
+	ensureCaretSlots(root);
 }
 
 /**
@@ -137,11 +140,124 @@ export function expand(root) {
 	for (i = nodes.length - 1; i >= 0; i--) {
 		el = nodes[i];
 		text = el.getAttribute('data-sceditor-marker') || el.textContent;
+		stripSlotEdge(el.previousSibling, true);
+		stripSlotEdge(el.nextSibling, false);
 		el.parentNode.replaceChild(
 			root.ownerDocument.createTextNode(text),
 			el
 		);
 	}
+}
+
+/**
+ * Chip that Backspace (direction -1) or Delete (direction 1) removes.
+ *
+ * @param {Range} range
+ * @param {number} direction
+ * @return {HTMLElement|null}
+ */
+export function adjacentMarker(range, direction) {
+	var node;
+	var offset;
+	var atStart;
+	var atEnd;
+	var onlySlot;
+
+	if (!range || !range.collapsed) {
+		return null;
+	}
+
+	node = range.startContainer;
+	offset = range.startOffset;
+
+	if (node.nodeType === 3) {
+		atStart = offset === 0;
+		atEnd = offset === (node.nodeValue || '').length;
+		onlySlot = isCaretSlot(node);
+
+		if (direction < 0 && (atStart || onlySlot)) {
+			return nearestMarker(node.previousSibling, direction);
+		}
+
+		if (direction > 0 && (atEnd || onlySlot)) {
+			return nearestMarker(node.nextSibling, direction);
+		}
+
+		return null;
+	}
+
+	if (node.nodeType === 1) {
+		return nearestMarker(
+			node.childNodes[direction < 0 ? offset - 1 : offset],
+			direction
+		);
+	}
+
+	return null;
+}
+
+/**
+ * Removes a chip and leaves the caret where it stood.
+ *
+ * @param {HTMLElement} chip
+ */
+export function removeChip(chip) {
+	var parent = chip && chip.parentNode;
+	var doc;
+	var selection;
+	var range;
+	var prev;
+	var next;
+	var ref;
+
+	if (!parent) {
+		return;
+	}
+
+	prev = chip.previousSibling;
+	next = chip.nextSibling;
+
+	if (isCaretSlot(prev)) {
+		parent.removeChild(prev);
+	}
+
+	if (isCaretSlot(next)) {
+		parent.removeChild(next);
+	}
+
+	ref = chip.nextSibling;
+	parent.removeChild(chip);
+
+	doc = parent.ownerDocument;
+	range = doc.createRange();
+
+	if (!parent.firstChild && parent !== doc.body) {
+		ref = doc.createElement('br');
+		parent.appendChild(ref);
+		range.setStartBefore(ref);
+	} else if (ref && ref.parentNode === parent) {
+		if (ref.nodeType === 3) {
+			range.setStart(ref, 0);
+		} else {
+			range.setStartBefore(ref);
+		}
+	} else if (parent.lastChild && parent.lastChild.nodeType === 3) {
+		range.setStart(parent.lastChild, parent.lastChild.nodeValue.length);
+	} else if (parent.lastChild) {
+		range.setStartAfter(parent.lastChild);
+	} else {
+		range.setStart(parent, 0);
+	}
+
+	range.collapse(true);
+	selection = doc.defaultView && doc.defaultView.getSelection();
+
+	if (!selection) {
+		return;
+	}
+
+	selection.removeAllRanges();
+	selection.addRange(range);
 }
 
 /**
@@ -593,6 +709,88 @@ function previewHtml(marker) {
 		'"><span class="sceditor-marker-kind">' + marker.kind +
 		'</span><span class="sceditor-marker-num">' +
 		escapeHtml(marker.num) + '</span></span>';
+}
+
+/**
+ * True when the text node is empty or holds only caret spaces.
+ *
+ * @param {Node} node
+ * @return {boolean}
+ */
+function isCaretSlot(node) {
+	return !!(node && node.nodeType === 3 &&
+		!String(node.nodeValue || '').replace(/\u200B/g, ''));
+}
+
+/**
+ * @param {Node} node
+ * @param {number} direction
+ * @return {HTMLElement|null}
+ */
+function nearestMarker(node, direction) {
+	while (isCaretSlot(node)) {
+		node = direction < 0 ? node.previousSibling : node.nextSibling;
+	}
+
+	if (node && node.nodeType === 1 && node.classList &&
+			node.classList.contains('sceditor-marker')) {
+		return node;
+	}
+
+	return null;
+}
+
+/**
+ * Drops caret spaces that sit against a chip.
+ *
+ * @param {Node} node
+ * @param {boolean} trailing
+ */
+function stripSlotEdge(node, trailing) {
+	var value;
+
+	if (!node || node.nodeType !== 3 || !node.nodeValue ||
+			node.nodeValue.indexOf('\u200B') === -1) {
+		return;
+	}
+
+	value = trailing ?
+		node.nodeValue.replace(/\u200B+$/, '') :
+		node.nodeValue.replace(/^\u200B+/, '');
+
+	if (!value) {
+		node.parentNode.removeChild(node);
+	} else if (value !== node.nodeValue) {
+		node.nodeValue = value;
+	}
+}
+
+/**
+ * Puts a caret space on each side of a chip that has no text there.
+ *
+ * @param {HTMLElement} root
+ */
+function ensureCaretSlots(root) {
+	var chips = root.querySelectorAll('.sceditor-marker');
+	var doc;
+	var el;
+	var i;
+
+	for (i = 0; i < chips.length; i++) {
+		el = chips[i];
+		doc = el.ownerDocument;
+
+		if (!el.previousSibling || el.previousSibling.nodeType !== 3) {
+			el.parentNode.insertBefore(doc.createTextNode('\u200B'), el);
+		}
+
+		if (!el.nextSibling || el.nextSibling.nodeType !== 3) {
+			el.parentNode.insertBefore(
+				doc.createTextNode('\u200B'),
+				el.nextSibling
+			);
+		}
+	}
 }
 
 /**

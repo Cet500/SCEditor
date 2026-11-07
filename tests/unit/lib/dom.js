@@ -1043,6 +1043,27 @@ QUnit.test('removeWhiteSpace() - Ignore marker spaces', function (assert) {
 	);
 });
 
+QUnit.test('removeWhiteSpace() - keeps caret spaces beside chips',
+	function (assert) {
+		var node = document.createElement('div');
+		var chip = document.createElement('span');
+
+		chip.className = 'sceditor-marker';
+		chip.textContent = '[image 1]';
+		node.appendChild(document.createTextNode('\u200B'));
+		node.appendChild(chip);
+		node.appendChild(document.createTextNode('\u200B'));
+		node.appendChild(document.createTextNode('x\u200By'));
+
+		dom.removeWhiteSpace(node);
+
+		assert.strictEqual(node.firstChild.nodeValue, '\u200B');
+		assert.strictEqual(node.childNodes[2].nodeValue, '\u200B');
+		assert.strictEqual(node.lastChild.nodeValue, 'xy');
+	}
+);
+
+
 QUnit.test(
 	'removeWhiteSpace() - Siblings with start and end spaces',
 	function (assert) {
@@ -1813,6 +1834,22 @@ QUnit.test('merge() - deep with siblings', function (assert) {
 		)
 	);
 });
+
+QUnit.test('merge() - marker chips stay separate', function (assert) {
+	var node = utils.htmlToNode(
+		'<p>' +
+			'<span class="sceditor-marker" contenteditable="false" ' +
+				'data-sceditor-marker="[image 1]">[image 1]</span>' +
+			'<span class="sceditor-marker" contenteditable="false" ' +
+				'data-sceditor-marker="[image 1]">[image 1]</span>' +
+		'</p>'
+	);
+
+	dom.merge(node);
+
+	assert.strictEqual(node.querySelectorAll('.sceditor-marker').length, 2);
+});
+
 
 QUnit.test('merge() - <br> tags should not merge', function (assert) {
 	var node = utils.htmlToNode(

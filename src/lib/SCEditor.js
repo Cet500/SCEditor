@@ -319,6 +319,7 @@ export default function SCEditor(original, userOptions) {
 		handleCutCopyEvt,
 		handlePasteData,
 		handleKeyDown,
+		handleMarkerKey,
 		handleBackSpace,
 		handleKeyPress,
 		handleFormReset,
@@ -684,6 +685,7 @@ export default function SCEditor(original, userOptions) {
 		dom.on(window, 'pagehide', base.updateOriginal);
 		dom.on(window, 'pageshow', handleFormReset);
 		dom.on(wysiwygBody, 'keypress', handleKeyPress);
+		dom.on(wysiwygBody, 'keydown', handleMarkerKey);
 		dom.on(wysiwygBody, 'keydown', handleKeyDown);
 		dom.on(wysiwygBody, 'keydown', handleBackSpace);
 		dom.on(wysiwygBody, 'input', protectWysiwygMarkers);
@@ -1527,6 +1529,7 @@ export default function SCEditor(original, userOptions) {
 			}
 
 			dom.appendChild(firstParent || container, range.cloneContents());
+			markers.expand(container);
 			dom.removeWhiteSpace(container);
 
 			e.clipboardData.setData('text/html', container.innerHTML);
@@ -1763,6 +1766,7 @@ export default function SCEditor(original, userOptions) {
 		// Add a new line after the last block element
 		// so can always add text after it
 		appendNewLine();
+		protectWysiwygMarkers();
 	};
 
 	/**
@@ -2286,8 +2290,12 @@ export default function SCEditor(original, userOptions) {
 		}
 
 		protectingMarkers = true;
-		markers.protect(wysiwygBody, activeMarkerKinds());
-		protectingMarkers = false;
+
+		try {
+			markers.protect(wysiwygBody, activeMarkerKinds());
+		} finally {
+			protectingMarkers = false;
+		}
 	}
 
 	/**
@@ -3478,6 +3486,57 @@ export default function SCEditor(original, userOptions) {
 		delete shortcutHandlers[shortcut.toLowerCase()];
 
 		return base;
+	};
+
+	/**
+	 * Deletes a marker chip when Backspace or Delete lands on it.
+	 * The browser otherwise skips a contenteditable=false chip.
+	 * @private
+	 */
+	handleMarkerKey = function (e) {
+		var which = e.which;
+		var direction = 0;
+		var selection;
+		var chip;
+		var inputType;
+		var inputEvent;
+
+		if (which === 8) {
+			direction = -1;
+		} else if (which === 46) {
+			direction = 1;
+		}
+
+		selection = wysiwygWindow && wysiwygWindow.getSelection();
+
+		if (!direction || e.altKey || e.ctrlKey || e.metaKey || !selection ||
+				!selection.rangeCount || !selection.isCollapsed) {
+			return;
+		}
+
+		chip = markers.adjacentMarker(selection.getRangeAt(0), direction);
+
+		if (!chip || !wysiwygBody.contains(chip)) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		markers.removeChip(chip);
+		inputType = direction < 0 ?
+			'deleteContentBackward' : 'deleteContentForward';
+
+		try {
+			inputEvent = new InputEvent('input', {
+				bubbles: true,
+				inputType: inputType
+			});
+		} catch (ex) {
+			inputEvent = wysiwygDocument.createEvent('Event');
+			inputEvent.initEvent('input', true, !!ex);
+		}
+
+		wysiwygBody.dispatchEvent(inputEvent);
 	};
 
 	/**
