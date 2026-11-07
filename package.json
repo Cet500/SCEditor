@@ -1,9 +1,9 @@
 {
   "name": "sceditor",
-  "version": "3.2.3",
-  "description": "A lightweight HTML WYSIWYG editor.",
-  "homepage": "http://www.sceditor.com/",
-  "bugs": "https://github.com/samclarke/SCEditor/issues",
+  "version": "3.2.3-fork.1",
+  "description": "Fork of SCEditor 3.2.3 for internal projects. Upstream: https://github.com/samclarke/SCEditor",
+  "homepage": "https://github.com/Cet500/SCEditor",
+  "bugs": "https://github.com/Cet500/SCEditor/issues",
   "license": "MIT",
   "author": "Sam Clarke <sam@samclarke.com>",
   "contributors": [
@@ -22,7 +22,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/samclarke/SCEditor.git"
+    "url": "https://github.com/Cet500/SCEditor.git"
   },
   "keywords": [
     "WYSIWYG",

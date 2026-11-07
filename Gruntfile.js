@@ -134,8 +134,9 @@ module.exports = (grunt) => {
 					warnings: true,
 					compress: true,
 					mangle: true,
-					banner: '/* SCEditor v<%= pkg.version %> | ' +
-					'(C) 2017, Sam Clarke | sceditor.com/license */\n'
+					banner: '/* SCEditor fork v<%= pkg.version %> | ' +
+					'fork of SCEditor (C) 2011-2017 Sam Clarke, MIT | ' +
+					'https://github.com/samclarke/SCEditor */\n'
 				},
 				files: [
 					{

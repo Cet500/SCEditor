@@ -1,11 +1,7 @@
 # Security Policy
 
-## Supported Versions
+This repository is a fork of [SCEditor](https://github.com/samclarke/SCEditor) for internal projects. It is based on upstream 3.2.3.
 
-The latest version is supported.
+Vulnerabilities in the original project should be reported to Sam Clarke, as described in the upstream policy: email sam@samclarke.com with "Security vulnerability report:" in the subject.
 
-## Reporting a Vulnerability
-
-If you find or suspect a security vulnerability, please report by sending an email to sam@samclarke.com.
-
-If possible, please include "Security vulnerability report:" in the subject line.
+Please do not send reports about this fork to the upstream author.

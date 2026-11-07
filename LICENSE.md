@@ -1,6 +1,13 @@
 MIT License
 
-Copyright (C) 2011-2016 by Sam Clarke and contributors
+This repository is a fork of SCEditor for internal projects.
+Original project: https://github.com/samclarke/SCEditor
+Upstream version used as the base: 3.2.3
+
+The original copyright is kept below. Changes in this fork are
+distributed under the same MIT license.
+
+Copyright (C) 2011-2017 Sam Clarke and contributors
 http://www.sceditor.com/
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
