@@ -643,8 +643,148 @@ QUnit.test('markers round-trip as marker strings', function (assert) {
 	assert.ok(saved.indexOf('[gallery 1 3]') !== -1);
 	assert.ok(saved.indexOf('[image 1]') !== -1);
 	assert.strictEqual(saved.indexOf('sceditor-marker'), -1);
+	assert.strictEqual(saved.indexOf('sceditor-block-'), -1);
+	assert.strictEqual(saved.indexOf('sceditor-drag'), -1);
+	assert.strictEqual(saved.indexOf('sceditor-rail'), -1);
 	assert.strictEqual(saved.indexOf('data-sceditor-marker'), -1);
 	assert.strictEqual(saved.indexOf('\u200B'), -1);
+});
+
+
+QUnit.test('Enter starts a block, Shift+Enter stays inside',
+	function (assert) {
+		var body;
+		var doc;
+		var h2;
+		var paragraph;
+		var text;
+		var range;
+		var sel;
+		var paragraphs;
+
+		reloadEditor({
+			format: 'xhtml'
+		});
+		sceditor.val('<h2>Заголовок</h2><p>Первая строка</p>', false);
+		sceditor.focus();
+
+		body = sceditor.getBody();
+		doc = body.ownerDocument;
+		h2 = body.querySelector('h2');
+		text = h2.firstChild;
+		range = doc.createRange();
+		range.setStart(text, text.nodeValue.length);
+		range.collapse(true);
+		sel = doc.defaultView.getSelection();
+		sel.removeAllRanges();
+		sel.addRange(range);
+
+		h2.dispatchEvent(new KeyboardEvent('keypress', {
+			bubbles: true,
+			cancelable: true,
+			keyCode: 13,
+			which: 13
+		}));
+
+		assert.strictEqual(h2.textContent, 'Заголовок');
+		assert.strictEqual(h2.nextElementSibling.tagName, 'P');
+
+		paragraph = Array.prototype.find.call(body.children, function (el) {
+			return el.textContent.indexOf('Первая строка') !== -1;
+		});
+		text = paragraph.firstChild;
+		range = doc.createRange();
+		range.setStart(text, 6);
+		range.collapse(true);
+		sel.removeAllRanges();
+		sel.addRange(range);
+		paragraphs = body.querySelectorAll('p').length;
+
+		paragraph.dispatchEvent(new KeyboardEvent('keypress', {
+			bubbles: true,
+			cancelable: true,
+			keyCode: 13,
+			which: 13,
+			shiftKey: true
+		}));
+
+		assert.strictEqual(body.querySelectorAll('p').length, paragraphs);
+		assert.ok(paragraph.querySelector('br'));
+	}
+);
+
+
+QUnit.test('drag handle moves a block and is not saved', function (assert) {
+	var body;
+	var doc;
+	var handles;
+	var blocks;
+	var handle;
+	var target;
+	var down;
+	var move;
+	var saved;
+	var order;
+
+	reloadEditor({
+		format: 'xhtml'
+	});
+	sceditor.val('<p>Первый</p><p>Второй</p><h2>Низ</h2>', false);
+
+	body = sceditor.getBody();
+	doc = body.ownerDocument;
+	handles = body.querySelectorAll('.sceditor-drag');
+	blocks = Array.prototype.filter.call(body.children, function (el) {
+		return !el.classList.contains('sceditor-rail') &&
+			!el.classList.contains('sceditor-nlf');
+	});
+
+	assert.strictEqual(handles.length, blocks.length);
+	handle = handles[blocks.length - 1];
+	target = blocks[0].getBoundingClientRect();
+
+	down = new PointerEvent('pointerdown', {
+		bubbles: true,
+		cancelable: true,
+		pointerId: 1,
+		button: 0,
+		clientX: 8,
+		clientY: 8
+	});
+	handle.dispatchEvent(down);
+
+	move = new PointerEvent('pointermove', {
+		bubbles: true,
+		cancelable: true,
+		pointerId: 1,
+		button: 0,
+		clientX: 8,
+		clientY: target.top - 30
+	});
+	doc.dispatchEvent(move);
+	doc.dispatchEvent(new PointerEvent('pointerup', {
+		bubbles: true,
+		cancelable: true,
+		pointerId: 1,
+		button: 0,
+		clientX: 8,
+		clientY: target.top - 30
+	}));
+
+	order = Array.prototype.filter.call(body.children, function (el) {
+		return !el.classList.contains('sceditor-rail') &&
+			!el.classList.contains('sceditor-nlf');
+	});
+
+	assert.strictEqual(order[0].tagName, 'H2');
+	assert.strictEqual(order[0].textContent, 'Низ');
+
+	saved = sceditor.val();
+	assert.ok(saved.indexOf('Низ') < saved.indexOf('Первый'));
+	assert.strictEqual(saved.indexOf('sceditor-drag'), -1);
+	assert.strictEqual(saved.indexOf('sceditor-rail'), -1);
+	assert.strictEqual(saved.indexOf('sceditor-ghost'), -1);
+	assert.strictEqual(saved.indexOf('is-drag-source'), -1);
 });
 
 

@@ -322,6 +322,10 @@ export default function SCEditor(original, userOptions) {
 		handleMarkerKey,
 		handleBackSpace,
 		handleKeyPress,
+		startBlockDrag,
+		moveBlockDrag,
+		finishBlockDrag,
+		dragState,
 		handleFormReset,
 		handleMouseDown,
 		handleComposition,
@@ -688,6 +692,14 @@ export default function SCEditor(original, userOptions) {
 		dom.on(wysiwygBody, 'keydown', handleMarkerKey);
 		dom.on(wysiwygBody, 'keydown', handleKeyDown);
 		dom.on(wysiwygBody, 'keydown', handleBackSpace);
+		dom.on(wysiwygBody, 'pointerdown', startBlockDrag);
+		dom.on(wysiwygBody, 'load', function (e) {
+			if (dragState || dom.closest(e.target, '.sceditor-ghost')) {
+				return;
+			}
+
+			markers.labelBlocks(wysiwygBody);
+		}, dom.EVENT_CAPTURE);
 		dom.on(wysiwygBody, 'input', protectWysiwygMarkers);
 		dom.on(wysiwygBody, 'keyup', appendNewLine);
 		dom.on(wysiwygBody, 'blur', valueChangedBlur);
@@ -981,9 +993,18 @@ export default function SCEditor(original, userOptions) {
 	 * Autofocus the editor
 	 * @private
 	 */
+	var skipChrome = function (node, fromEnd) {
+		while (node && dom.is(node, '.sceditor-rail,.sceditor-drop,' +
+			'.sceditor-ghost,.sceditor-ignore')) {
+			node = fromEnd ? node.previousSibling : node.nextSibling;
+		}
+
+		return node;
+	};
+
 	autofocus = function (focusEnd) {
 		var	range, txtPos,
-			node = wysiwygBody.firstChild;
+			node = skipChrome(wysiwygBody.firstChild, false);
 
 		// Can't focus invisible elements
 		if (!dom.isVisible(editorContainer)) {
@@ -1001,7 +1022,9 @@ export default function SCEditor(original, userOptions) {
 		dom.removeWhiteSpace(wysiwygBody);
 
 		if (focusEnd) {
-			if (!(node = wysiwygBody.lastChild)) {
+			node = skipChrome(wysiwygBody.lastChild, true);
+
+			if (!node) {
 				node = dom.createElement('p', {}, wysiwygDocument);
 				dom.appendChild(wysiwygBody, node);
 			}
@@ -1530,6 +1553,7 @@ export default function SCEditor(original, userOptions) {
 
 			dom.appendChild(firstParent || container, range.cloneContents());
 			markers.expand(container);
+			markers.clearBlockLabels(container);
 			dom.removeWhiteSpace(container);
 
 			e.clipboardData.setData('text/html', container.innerHTML);
@@ -2054,6 +2078,7 @@ export default function SCEditor(original, userOptions) {
 
 		dom.appendChild(wysiwygBody, tmp);
 		markers.expand(tmp);
+		markers.clearBlockLabels(tmp);
 		dom.fixNesting(tmp);
 		dom.remove(tmp);
 
@@ -2790,6 +2815,185 @@ export default function SCEditor(original, userOptions) {
 	};
 
 	/**
+	 * Shift+Enter. A line break that stays inside the current block.
+	 * @private
+	 */
+	var insertSoftBreak = function () {
+		var br = dom.createElement('br', {}, wysiwygDocument);
+		var parent;
+		var lastChild;
+
+		rangeHelper.insertNode(br);
+		parent = br.parentNode;
+		lastChild = parent.lastChild;
+
+		// Sometimes an empty next node is created after the <br>
+		if (lastChild && lastChild.nodeType === dom.TEXT_NODE &&
+				lastChild.nodeValue === '') {
+			dom.remove(lastChild);
+			lastChild = parent.lastChild;
+		}
+
+		// The last <br> of a block collapses unless another follows it.
+		if (!dom.isInline(parent, true) && lastChild === br &&
+				dom.isInline(br.previousSibling)) {
+			rangeHelper.insertHTML('<br>');
+		}
+	};
+
+	/**
+	 * Direct child of the editor body that contains the node.
+	 * @private
+	 * @param {Node} container
+	 * @return {?HTMLElement}
+	 */
+	var blockFromCaret = function (container) {
+		var node = container;
+
+		if (!node) {
+			return null;
+		}
+
+		if (node.nodeType === dom.TEXT_NODE) {
+			node = node.parentNode;
+		}
+
+		while (node && node.parentNode !== wysiwygBody) {
+			node = node.parentNode;
+		}
+
+		if (!node || node === wysiwygBody) {
+			return null;
+		}
+
+		return node;
+	};
+
+	/**
+	 * @private
+	 * @param {HTMLElement} el
+	 * @return {boolean}
+	 */
+	var blockIsEmpty = function (el) {
+		var text = (el.textContent || '').replace(/\u200B/g, '');
+
+		if (/\S/.test(text)) {
+			return false;
+		}
+
+		return !el.querySelector('img,.sceditor-marker,table,hr,iframe');
+	};
+
+	/**
+	 * @private
+	 * @param {HTMLElement} el
+	 */
+	var placeCaret = function (el) {
+		var range = wysiwygDocument.createRange();
+		var first = el.firstChild;
+		var sel;
+
+		if (first && first.nodeType === dom.TEXT_NODE) {
+			range.setStart(first, 0);
+		} else if (first) {
+			range.setStartBefore(first);
+		} else {
+			range.setStart(el, 0);
+		}
+
+		range.collapse(true);
+		sel = wysiwygWindow.getSelection();
+
+		if (!sel) {
+			return;
+		}
+
+		sel.removeAllRanges();
+		sel.addRange(range);
+	};
+
+	/**
+	 * @private
+	 * @param {HTMLElement} paragraph
+	 * @param {DocumentFragment} fragment
+	 */
+	var fillNewParagraph = function (paragraph, fragment) {
+		var nested;
+
+		paragraph.appendChild(fragment);
+		nested = paragraph.firstChild;
+
+		if (paragraph.childNodes.length === 1 && nested &&
+				dom.is(nested, 'p,div')) {
+			while (nested.firstChild) {
+				dom.insertBefore(nested.firstChild, nested);
+			}
+
+			dom.remove(nested);
+		}
+
+		if (blockIsEmpty(paragraph)) {
+			paragraph.innerHTML = '<br>';
+		}
+	};
+
+	/**
+	 * Enter. Starts a paragraph after the current block and moves
+	 * the tail of the block into it.
+	 * @private
+	 * @return {boolean} false when the browser should handle the key
+	 */
+	var insertParagraphAfter = function () {
+		var range = rangeHelper.selectedRange();
+		var container;
+		var block;
+		var tail;
+		var paragraph;
+
+		if (!range) {
+			return false;
+		}
+
+		if (!range.collapsed) {
+			range.deleteContents();
+		}
+
+		container = range.startContainer;
+
+		if (dom.closest(container, 'td,th,li,ul,ol,table')) {
+			return false;
+		}
+
+		block = blockFromCaret(container);
+
+		if (!block || dom.is(block, 'table,ul,ol')) {
+			return false;
+		}
+
+		tail = wysiwygDocument.createRange();
+		tail.selectNodeContents(block);
+		tail.setStart(range.startContainer, range.startOffset);
+		paragraph = dom.createElement('p', {}, wysiwygDocument);
+		fillNewParagraph(paragraph, tail.extractContents());
+
+		if (block.nextSibling) {
+			dom.insertBefore(paragraph, block.nextSibling);
+		} else {
+			dom.appendChild(wysiwygBody, paragraph);
+		}
+
+		if (blockIsEmpty(block) && dom.is(block,
+			'p,div,h1,h2,h3,h4,h5,h6,blockquote,pre')) {
+			block.innerHTML = '<br>';
+		}
+
+		placeCaret(paragraph);
+		protectWysiwygMarkers();
+
+		return true;
+	};
+
+	/**
 	 * Handles any key press in the WYSIWYG editor
 	 *
 	 * @private
@@ -2803,40 +3007,21 @@ export default function SCEditor(original, userOptions) {
 		base.closeDropDown();
 
 		// 13 = enter key
-		if (e.which === 13) {
-			var LIST_TAGS = 'li,ul,ol';
+		if ((e.which || e.keyCode) !== 13 ||
+				e.altKey || e.ctrlKey || e.metaKey) {
+			return;
+		}
 
-			// "Fix" (cludge) for blocklevel elements being duplicated in some
-			// browsers when enter is pressed instead of inserting a newline
-			if (!dom.is(currentBlockNode, LIST_TAGS) &&
-				dom.hasStyling(currentBlockNode)) {
+		// Shift+Enter stays inside the block.
+		if (e.shiftKey) {
+			insertSoftBreak();
+			e.preventDefault();
+			return;
+		}
 
-				var br = dom.createElement('br', {}, wysiwygDocument);
-				rangeHelper.insertNode(br);
-
-				// Last <br> of a block will be collapsed  so need to make sure
-				// the <br> that was inserted isn't the last node of a block.
-				var parent  = br.parentNode;
-				var lastChild = parent.lastChild;
-
-				// Sometimes an empty next node is created after the <br>
-				if (lastChild && lastChild.nodeType === dom.TEXT_NODE &&
-					lastChild.nodeValue === '') {
-					dom.remove(lastChild);
-					lastChild = parent.lastChild;
-				}
-
-				// If this is the last BR of a block and the previous
-				// sibling is inline then will need an extra BR. This
-				// is needed because the last BR of a block will be
-				// collapsed. Fixes issue #248
-				if (!dom.isInline(parent, true) && lastChild === br &&
-					dom.isInline(br.previousSibling)) {
-					rangeHelper.insertHTML('<br>');
-				}
-
-				e.preventDefault();
-			}
+		// Enter starts a new block. Lists and tables keep their own keys.
+		if (insertParagraphAfter()) {
+			e.preventDefault();
 		}
 	};
 
@@ -2855,6 +3040,11 @@ export default function SCEditor(original, userOptions) {
 		// stop checking.
 		dom.rTraverse(wysiwygBody, function (node) {
 			// Last block, add new line after if has styling
+			if (dom.is(node, '.sceditor-rail,.sceditor-drop,' +
+				'.sceditor-drag,.sceditor-ghost,.sceditor-ignore')) {
+				return;
+			}
+
 			if (node.nodeType === dom.ELEMENT_NODE &&
 				!/inline/.test(dom.css(node, 'display'))) {
 
@@ -2881,6 +3071,366 @@ export default function SCEditor(original, userOptions) {
 	 * Handles form reset event
 	 * @private
 	 */
+	dragState = null;
+
+	/**
+	 * Blocks the grip can move. Matches the blocks that get a handle.
+	 * @private
+	 * @param {HTMLElement} el
+	 * @return {boolean}
+	 */
+	var isDragBlock = function (el) {
+		var name;
+
+		if (!el || dom.is(el, '.sceditor-rail,.sceditor-drop,' +
+			'.sceditor-ghost,.sceditor-nlf')) {
+			return false;
+		}
+
+		name = el.nodeName;
+
+		return name === 'P' || name === 'DIV' || name === 'BLOCKQUOTE' ||
+			name === 'UL' || name === 'OL' || name === 'TABLE' ||
+			name === 'PRE' || name === 'HR' ||
+			(name.charAt(0) === 'H' && name.length === 2);
+	};
+
+	/**
+	 * @private
+	 * @return {Array<HTMLElement>}
+	 */
+	var dragBlocks = function () {
+		var list = [];
+		var i;
+		var el;
+
+		for (i = 0; i < wysiwygBody.children.length; i++) {
+			el = wysiwygBody.children[i];
+
+			if (isDragBlock(el)) {
+				list.push(el);
+			}
+		}
+
+		return list;
+	};
+
+	/**
+	 * Gaps between blocks, ignoring the one being dragged so a tall
+	 * picture does not steal the pointer from the short paragraphs.
+	 * @private
+	 * @param {HTMLElement} block
+	 * @return {Array<{block: HTMLElement, before: boolean, y: number}>}
+	 */
+	var dragSlots = function (block) {
+		var slots = [];
+		var children = wysiwygBody.children;
+		var el;
+		var rect;
+		var last = null;
+		var i;
+
+		for (i = 0; i < children.length; i++) {
+			el = children[i];
+
+			if (!isDragBlock(el) || el === block) {
+				continue;
+			}
+
+			rect = el.getBoundingClientRect();
+			slots.push({ block: el, before: true, y: rect.top });
+			last = { block: el, y: rect.bottom };
+		}
+
+		if (last) {
+			slots.push({ block: last.block, before: false, y: last.y });
+		}
+
+		return slots;
+	};
+
+	/**
+	 * Sticks to the current gap until the pointer is clearly closer
+	 * to the next one.
+	 * @private
+	 * @param {number} y
+	 * @param {HTMLElement} block
+	 * @param {?{block: HTMLElement, before: boolean, y: number}} current
+	 * @return {?{block: HTMLElement, before: boolean, y: number}}
+	 */
+	var placeForDrag = function (y, block, current) {
+		var slots = dragSlots(block);
+		var best;
+		var bestDist;
+		var dist;
+		var mid;
+		var i;
+
+		if (!slots.length) {
+			return null;
+		}
+
+		best = slots[0];
+		bestDist = Math.abs(y - best.y);
+
+		for (i = 1; i < slots.length; i++) {
+			dist = Math.abs(y - slots[i].y);
+
+			if (dist < bestDist) {
+				best = slots[i];
+				bestDist = dist;
+			}
+		}
+
+		if (!current || !current.block.parentNode ||
+				(current.block === best.block &&
+					current.before === best.before)) {
+			return best;
+		}
+
+		mid = (current.y + best.y) / 2;
+
+		if (best.y > current.y ? y > mid + 10 : y < mid - 10) {
+			return best;
+		}
+
+		return current;
+	};
+
+	/**
+	 * @private
+	 * @param {?{block: HTMLElement, before: boolean}} place
+	 */
+	var showDropLine = function (place) {
+		var line = wysiwygBody.querySelector('.sceditor-drop');
+		var top;
+
+		if (!place) {
+			if (line) {
+				dom.remove(line);
+			}
+
+			return;
+		}
+
+		top = place.block.offsetTop;
+
+		if (!place.before) {
+			top += place.block.offsetHeight;
+		}
+
+		if (!line) {
+			line = dom.createElement('div', {
+				className: 'sceditor-drop'
+			}, wysiwygDocument);
+			line.setAttribute('contenteditable', 'false');
+			dom.appendChild(wysiwygBody, line);
+		}
+
+		line.style.top = top + 'px';
+	};
+
+	/**
+	 * A faint copy of the block that follows the pointer.
+	 * Drag still works if this cannot be drawn.
+	 * @private
+	 * @param {HTMLElement} block
+	 * @param {number} y
+	 */
+	var placeDragGhost = function (block, y) {
+		var ghost = wysiwygBody.querySelector('.sceditor-ghost');
+		var copy;
+
+		try {
+			if (!ghost) {
+				ghost = dom.createElement('div', {
+					className: 'sceditor-ghost'
+				}, wysiwygDocument);
+				ghost.setAttribute('contenteditable', 'false');
+				copy = block.cloneNode(true);
+				dom.appendChild(ghost, copy);
+				dom.appendChild(wysiwygBody, ghost);
+			}
+
+			ghost.style.top = (wysiwygWindow.pageYOffset + y - 20) + 'px';
+		} catch (ex) {
+			if (ex && ghost && ghost.parentNode) {
+				dom.remove(ghost);
+			}
+		}
+	};
+
+	/**
+	 * @private
+	 * @param {number} y
+	 */
+	var scrollWhileDragging = function (y) {
+		var height = wysiwygWindow.innerHeight;
+
+		if (y < 28) {
+			wysiwygWindow.scrollBy(0, -14);
+		} else if (y > height - 28) {
+			wysiwygWindow.scrollBy(0, 14);
+		}
+	};
+
+	/**
+	 * @private
+	 */
+	var stopBlockDrag = function () {
+		var line = wysiwygBody.querySelector('.sceditor-drop');
+		var ghost = wysiwygBody.querySelector('.sceditor-ghost');
+		var source = wysiwygBody.querySelector('.is-drag-source');
+
+		dom.removeClass(wysiwygBody, 'is-dragging');
+
+		if (source) {
+			dom.removeClass(source, 'is-drag-source');
+		}
+
+		if (line) {
+			dom.remove(line);
+		}
+
+		if (ghost) {
+			dom.remove(ghost);
+		}
+
+		dom.off(wysiwygDocument, 'pointermove', moveBlockDrag);
+		dom.off(wysiwygDocument, 'pointerup', finishBlockDrag);
+		dom.off(wysiwygDocument, 'pointercancel', finishBlockDrag);
+	};
+
+	/**
+	 * @private
+	 * @param {Event} e
+	 */
+	moveBlockDrag = function (e) {
+		var dx;
+		var dy;
+
+		if (!dragState || e.pointerId !== dragState.pointer) {
+			return;
+		}
+
+		dx = e.clientX - dragState.startX;
+		dy = e.clientY - dragState.startY;
+
+		if (!dragState.moved && (dx * dx) + (dy * dy) < 16) {
+			return;
+		}
+
+		dragState.moved = true;
+		e.preventDefault();
+		dom.addClass(wysiwygBody, 'is-dragging');
+		dom.addClass(dragState.block, 'is-drag-source');
+		scrollWhileDragging(e.clientY);
+
+		try {
+			dragState.place = placeForDrag(
+				e.clientY, dragState.block, dragState.place);
+			showDropLine(dragState.place);
+			placeDragGhost(dragState.block, e.clientY);
+		} catch (ex) {
+			if (ex && dragState) {
+				dragState.failed = true;
+			}
+		}
+	};
+
+	/**
+	 * @private
+	 * @param {Event} e
+	 */
+	finishBlockDrag = function (e) {
+		var state = dragState;
+		var place;
+		var block;
+		var beforeNode;
+
+		if (!state || (e && e.pointerId !== state.pointer)) {
+			return;
+		}
+
+		dragState = null;
+		place = state.place;
+		block = state.block;
+		stopBlockDrag();
+
+		if (!state.moved || !place || !block.parentNode) {
+			return;
+		}
+
+		beforeNode = place.before ? place.block : place.block.nextSibling;
+
+		if (beforeNode === block || beforeNode === block.nextSibling) {
+			return;
+		}
+
+		if (beforeNode) {
+			dom.insertBefore(block, beforeNode);
+		} else {
+			dom.appendChild(wysiwygBody, block);
+		}
+
+		markers.labelBlocks(wysiwygBody);
+		triggerValueChanged();
+	};
+
+	/**
+	 * @private
+	 * @param {Event} e
+	 */
+	startBlockDrag = function (e) {
+		var handle;
+		var handles;
+		var blocks;
+		var index;
+
+		if (dragState || e.button !== 0 || base.readOnly()) {
+			return;
+		}
+
+		handle = dom.closest(e.target, '.sceditor-drag');
+
+		if (!handle) {
+			return;
+		}
+
+		handles = wysiwygBody.querySelectorAll('.sceditor-drag');
+		blocks = dragBlocks();
+		index = Array.prototype.indexOf.call(handles, handle);
+
+		if (index < 0 || !blocks[index]) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopPropagation();
+		dragState = {
+			pointer: e.pointerId,
+			block: blocks[index],
+			startX: e.clientX,
+			startY: e.clientY,
+			moved: false,
+			place: null
+		};
+
+		if (handle.setPointerCapture) {
+			try {
+				handle.setPointerCapture(e.pointerId);
+			// eslint-disable-next-line no-unused-vars
+			} catch (ex) {
+				// A real pointer is required. The document listeners
+				// still track the drag.
+			}
+		}
+
+		dom.on(wysiwygDocument, 'pointermove', moveBlockDrag);
+		dom.on(wysiwygDocument, 'pointerup', finishBlockDrag);
+		dom.on(wysiwygDocument, 'pointercancel', finishBlockDrag);
+	};
+
 	handleFormReset = function () {
 		base.val(original.value);
 	};

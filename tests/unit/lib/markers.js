@@ -142,3 +142,38 @@ QUnit.test('protect() keeps a caret beside a lone marker', function (assert) {
 	);
 	assert.strictEqual(root.textContent.indexOf('\u200B'), -1);
 });
+
+
+QUnit.test('labelBlocks() names a lone marker and leaves mixed text',
+	function (assert) {
+		var root = document.createElement('div');
+
+		root.innerHTML = '<p>[image 2]</p>' +
+			'<p>иконка [fa plus] тут</p>' +
+			'<p><img src="mark.svg" alt=""></p>' +
+			'<p class="sceditor-nlf"><br></p>';
+		markers.protect(root, markers.enabled('image,fa'));
+
+		assert.ok(root.children[0].classList.contains('sceditor-block-image'));
+		assert.strictEqual(
+			root.children[1].className.indexOf('sceditor-block-'),
+			-1
+		);
+		assert.ok(root.children[2].classList.contains('sceditor-block-img'));
+		assert.strictEqual(
+			root.children[3].className.indexOf('sceditor-block-'),
+			-1
+		);
+
+		assert.strictEqual(root.querySelectorAll('.sceditor-drag').length, 3);
+
+		markers.clearBlockLabels(root);
+		assert.strictEqual(root.innerHTML.indexOf('sceditor-block-'), -1);
+		assert.strictEqual(root.innerHTML.indexOf('sceditor-rail'), -1);
+		assert.strictEqual(
+			root.querySelector('.sceditor-marker')
+				.getAttribute('data-sceditor-marker'),
+			'[image 2]'
+		);
+	}
+);

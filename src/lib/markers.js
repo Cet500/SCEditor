@@ -96,7 +96,12 @@ export function protect(root, kinds) {
 	var node;
 	var i;
 
-	if (!root || !hasEnabled(kinds)) {
+	if (!root) {
+		return;
+	}
+
+	if (!hasEnabled(kinds)) {
+		labelBlocks(root);
 		return;
 	}
 
@@ -118,6 +123,7 @@ export function protect(root, kinds) {
 	}
 
 	ensureCaretSlots(root);
+	labelBlocks(root);
 }
 
 /**
@@ -147,6 +153,127 @@ export function expand(root) {
 			el
 		);
 	}
+}
+
+/**
+ * Names a paragraph that holds only a picture or only one marker kind.
+ * The class is editor chrome. clearBlockLabels() removes it before save.
+ *
+ * @param {HTMLElement} root
+ */
+export function labelBlocks(root) {
+	var children;
+	var el;
+	var kind;
+	var i;
+
+	if (!root || !root.children) {
+		return;
+	}
+
+	clearBlockLabels(root);
+	children = root.children;
+
+	for (i = 0; i < children.length; i++) {
+		el = children[i];
+
+		if (el.nodeName !== 'P' || isNlf(el)) {
+			continue;
+		}
+
+		kind = blockKind(el);
+
+		if (kind) {
+			el.classList.add('sceditor-block-' + kind);
+		}
+	}
+
+	syncDragHandles(root);
+}
+
+/**
+ * @param {HTMLElement} root
+ */
+export function clearBlockLabels(root) {
+	var chrome;
+	var nodes;
+	var i;
+
+	if (!root || !root.querySelectorAll) {
+		return;
+	}
+
+	chrome = root.querySelectorAll(
+		'.sceditor-rail, .sceditor-drop, .sceditor-ghost');
+
+	for (i = chrome.length - 1; i >= 0; i--) {
+		chrome[i].parentNode.removeChild(chrome[i]);
+	}
+
+	nodes = root.querySelectorAll('.is-drag-source');
+
+	for (i = 0; i < nodes.length; i++) {
+		nodes[i].classList.remove('is-drag-source');
+	}
+
+	nodes = root.querySelectorAll('[class*="sceditor-block-"]');
+
+	for (i = 0; i < nodes.length; i++) {
+		stripBlockClass(nodes[i]);
+	}
+}
+
+/**
+ * Six-dot grips for the blocks that sit directly in the body.
+ * The rail is editor chrome and is removed before save.
+ *
+ * @param {HTMLElement} root
+ */
+function syncDragHandles(root) {
+	var doc = root.ownerDocument;
+	var rail = doc.createElement('div');
+	var child;
+	var handle;
+	var i;
+
+	rail.className = 'sceditor-rail';
+	rail.setAttribute('contenteditable', 'false');
+	rail.setAttribute('aria-hidden', 'true');
+
+	for (i = 0; i < root.children.length; i++) {
+		child = root.children[i];
+
+		if (!isDraggableBlock(child)) {
+			continue;
+		}
+
+		handle = doc.createElement('span');
+		handle.className = 'sceditor-drag';
+		handle.setAttribute('contenteditable', 'false');
+		handle.style.top = (child.offsetTop + 2) + 'px';
+		rail.appendChild(handle);
+	}
+
+	root.appendChild(rail);
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {boolean}
+ */
+function isDraggableBlock(el) {
+	var name;
+
+	if (!el || el.nodeType !== 1 || isNlf(el) || isRail(el)) {
+		return false;
+	}
+
+	name = el.nodeName;
+
+	return name === 'P' || name === 'DIV' || name === 'BLOCKQUOTE' ||
+		name === 'UL' || name === 'OL' || name === 'TABLE' ||
+		name === 'PRE' || name === 'HR' ||
+		(name.charAt(0) === 'H' && name.length === 2);
 }
 
 /**
@@ -709,6 +836,177 @@ function previewHtml(marker) {
 		'"><span class="sceditor-marker-kind">' + marker.kind +
 		'</span><span class="sceditor-marker-num">' +
 		escapeHtml(marker.num) + '</span></span>';
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {boolean}
+ */
+function isNlf(el) {
+	return !!(el.classList && el.classList.contains('sceditor-nlf'));
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {boolean}
+ */
+function isRail(el) {
+	return !!(el.classList && (el.classList.contains('sceditor-rail') ||
+		el.classList.contains('sceditor-drop')));
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {boolean}
+ */
+function isIgnored(el) {
+	return !!(el.classList && (
+		el.classList.contains('sceditor-nlf') ||
+		el.classList.contains('sceditor-ignore')
+	));
+}
+
+/**
+ * @param {HTMLElement} el
+ */
+function stripBlockClass(el) {
+	var remove = [];
+	var i;
+	var name;
+
+	if (!el || !el.classList) {
+		return;
+	}
+
+	for (i = 0; i < el.classList.length; i++) {
+		name = el.classList.item(i);
+
+		if (name.indexOf('sceditor-block-') === 0) {
+			remove.push(name);
+		}
+	}
+
+	for (i = 0; i < remove.length; i++) {
+		el.classList.remove(remove[i]);
+	}
+}
+
+/**
+ * Text outside marker chips, without caret spaces.
+ *
+ * @param {HTMLElement} el
+ * @return {string}
+ */
+function plainText(el) {
+	var doc = el.ownerDocument;
+	var walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+	var out = '';
+	var node = walker.nextNode();
+
+	while (node) {
+		if (!insideMarker(node)) {
+			out += node.nodeValue || '';
+		}
+
+		node = walker.nextNode();
+	}
+
+	return out.replace(/\u200B/g, '').replace(/\s+/g, '');
+}
+
+/**
+ * @param {Node} node
+ * @return {boolean}
+ */
+function insideMarker(node) {
+	var parent = node.parentNode;
+
+	while (parent && parent.nodeType === 1) {
+		if (parent.classList && parent.classList.contains('sceditor-marker')) {
+			return true;
+		}
+
+		parent = parent.parentNode;
+	}
+
+	return false;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {Array<HTMLElement>}
+ */
+function elementChildren(el) {
+	var list = [];
+	var child = el.firstChild;
+
+	while (child) {
+		if (child.nodeType === 1 && child.nodeName !== 'BR' &&
+				!isIgnored(child)) {
+			list.push(child);
+		}
+
+		child = child.nextSibling;
+	}
+
+	return list;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @return {string}
+ */
+function markerKind(el) {
+	var raw = el.getAttribute('data-sceditor-marker') || '';
+	var match = /^\[\s*(image|gallery|blog|fa)\b/i.exec(raw);
+
+	return match ? match[1].toLowerCase() : '';
+}
+
+/**
+ * image, gallery, blog, fa or img when the paragraph is only that.
+ * An empty string leaves the ordinary "p" label.
+ *
+ * @param {HTMLElement} el
+ * @return {string}
+ */
+function blockKind(el) {
+	var els;
+	var kind;
+	var next;
+	var i;
+
+	if (plainText(el)) {
+		return '';
+	}
+
+	els = elementChildren(el);
+
+	if (!els.length) {
+		return '';
+	}
+
+	if (els.length === 1 && els[0].nodeName === 'IMG') {
+		return 'img';
+	}
+
+	kind = '';
+
+	for (i = 0; i < els.length; i++) {
+		next = markerKind(els[i]);
+
+		if (!next) {
+			return '';
+		}
+
+		if (!kind) {
+			kind = next;
+		} else if (kind !== next) {
+			return '';
+		}
+	}
+
+	return kind;
 }
 
 /**

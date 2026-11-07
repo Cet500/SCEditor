@@ -26,6 +26,19 @@ body {
 		long lines don't cause horizontal scrolling */
 	min-height: 100%;
 	word-wrap: break-word;
+	/* Room for the block-type rail. Preview does not load this sheet. */
+	position: relative;
+	padding: 10px 14px 18px 76px;
+}
+
+body::after {
+	content: "";
+	position: absolute;
+	left: 64px;
+	top: 0;
+	bottom: 0;
+	border-left: 1px solid #e4ddd2;
+	pointer-events: none;
 }
 
 body.placeholder::before {
@@ -78,6 +91,211 @@ blockquote cite {
 h1, h2, h3, h4, h5, h6 {
 	padding: 0; margin: 0;
 }
+
+/*
+ * Editing rail. Labels are pseudo-elements, so they are not part of
+ * the saved HTML. Only the blocks that sit directly in the body are
+ * marked; a paragraph inside a quote stays part of that quote.
+ */
+body > p,
+body > div,
+body > h1,
+body > h2,
+body > h3,
+body > h4,
+body > h5,
+body > h6,
+body > blockquote,
+body > ul,
+body > ol,
+body > table,
+body > pre,
+body > hr {
+	position: relative;
+	margin: 0 0 1.15em;
+}
+
+body > p::before,
+body > div::before,
+body > h1::before,
+body > h2::before,
+body > h3::before,
+body > h4::before,
+body > h5::before,
+body > h6::before,
+body > blockquote::before,
+body > ul::before,
+body > ol::before,
+body > table::before,
+body > pre::before,
+body > hr::before {
+	position: absolute;
+	left: -60px;
+	top: 0.2em;
+	width: 46px;
+	padding-right: 6px;
+	box-sizing: border-box;
+	font: 11px/1.2 Verdana, Arial, Helvetica, sans-serif;
+	font-weight: normal;
+	font-style: normal;
+	letter-spacing: 0;
+	color: #8d8376;
+	text-align: right;
+	text-decoration: none;
+	text-transform: none;
+	pointer-events: none;
+	user-select: none;
+}
+
+body > p::before {
+	content: "p";
+}
+
+body > div::before {
+	content: "div";
+}
+
+body > h1::before { content: "h1"; }
+body > h2::before { content: "h2"; }
+body > h3::before { content: "h3"; }
+body > h4::before { content: "h4"; }
+body > h5::before { content: "h5"; }
+body > h6::before { content: "h6"; }
+body > blockquote::before { content: "quote"; }
+body > ul::before,
+body > ol::before { content: "list"; }
+body > table::before { content: "table"; }
+body > pre::before { content: "code"; }
+body > hr::before { content: "hr"; }
+
+body > p::after,
+body > div::after,
+body > h1::after,
+body > h2::after,
+body > h3::after,
+body > h4::after,
+body > h5::after,
+body > h6::after,
+body > blockquote::after,
+body > ul::after,
+body > ol::after,
+body > table::after,
+body > pre::after,
+body > hr::after {
+	content: "";
+	position: absolute;
+	left: -76px;
+	bottom: -0.58em;
+	width: 64px;
+	border-bottom: 1px dotted #ddd6cb;
+	pointer-events: none;
+}
+
+body > p.sceditor-nlf {
+	margin-bottom: 0;
+}
+
+body > p.sceditor-nlf::before,
+body > p.sceditor-nlf::after {
+	content: none;
+}
+
+body > div.sceditor-rail,
+body > div.sceditor-drop,
+body > div.sceditor-ghost {
+	position: absolute;
+	margin: 0;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+}
+
+body > div.sceditor-rail {
+	background: none;
+}
+
+body > div.sceditor-rail::before,
+body > div.sceditor-rail::after,
+body > div.sceditor-drop::before,
+body > div.sceditor-drop::after {
+	content: none;
+}
+
+.sceditor-rail {
+	left: 0;
+	top: 0;
+	width: 76px;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.sceditor-drag {
+	position: absolute;
+	left: 5px;
+	width: 10px;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background-color: transparent;
+	background-image: radial-gradient(
+		circle, #9a9084 1.15px, transparent 1.35px);
+	background-size: 5px 4.6px;
+	background-repeat: repeat;
+	cursor: grab;
+	pointer-events: auto;
+	touch-action: none;
+	user-select: none;
+}
+
+.sceditor-drag:hover,
+body.is-dragging .sceditor-drag {
+	background-image: radial-gradient(
+		circle, #5c564e 1.15px, transparent 1.35px);
+	cursor: grabbing;
+}
+
+.sceditor-drop {
+	left: 64px;
+	right: 10px;
+	height: 3px;
+	margin-top: -2px;
+	background: #1a73e8;
+	border-radius: 2px;
+	box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
+	z-index: 4;
+	pointer-events: none;
+}
+
+.is-drag-source {
+	opacity: 0.35;
+}
+
+.sceditor-ghost {
+	left: 76px;
+	right: 14px;
+	z-index: 5;
+	max-height: 120px;
+	overflow: hidden;
+	pointer-events: none;
+	background: #fff;
+	border: 2px solid #1a73e8;
+	border-radius: 4px;
+	box-shadow: 0 10px 28px rgba(42, 33, 24, 0.22);
+}
+
+.sceditor-ghost::before,
+.sceditor-ghost::after,
+.sceditor-ghost *::before,
+.sceditor-ghost *::after {
+	content: none !important;
+}
+
+body > p.sceditor-block-image::before { content: "image"; }
+body > p.sceditor-block-gallery::before { content: "gallery"; }
+body > p.sceditor-block-blog::before { content: "blog"; }
+body > p.sceditor-block-fa::before { content: "fa"; }
+body > p.sceditor-block-img::before { content: "img"; }
 
 /* A marker chip. The saved HTML is the marker text, not this element. */
 .sceditor-marker {
